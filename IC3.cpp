@@ -759,7 +759,8 @@ namespace IC3 {
         // xf: record CTI
         if (verbose > 2) {
           std::vector<std::map<int, int>> &lvc = *this->level_var_to_count;
-          int frame_idx = this->frames.size() - 1;
+          // obl.level
+          int frame_idx = this->frames.size()-1;
           for (auto l : state(obl.state).latches) {
             int l_number = (int)l.x;
             int var_number = l_number >> 1;

@@ -197,7 +197,7 @@ int main(int argc, char ** argv) {
     } else {
         std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
         std::cout << "the CTI encountered at stuck point" << std::endl;
-        auto &m_tmp = lvcp[lvcp.size() - 1];
+        auto &m_tmp = lvcp[lvcp.size() - 2];
         std::cout << ". CTI stat begin:" << std::endl;
         for (auto &p_tmp : m_tmp) {
           std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
