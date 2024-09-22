@@ -183,23 +183,11 @@ int main(int argc, char ** argv) {
     return 2;
   }
 
-  // model check it
-
-
+  // rv = IC3::check(*model,ic3_ptr, clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str());
   bool rv;
-  if (!has_time_limit) {
-    rv = IC3::check(*model, clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str());
-  } else {
-    auto future = std::async(std::launch::async, IC3::check, std::ref(*model), clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str());
-    if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready) {
-        rv = future.get(); 
-    } else {
-        std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
-        rv = false;
-        std::exit(rv);
-        return rv;
-    }
-  }
+  IC3::check_wrapper(*model, clsbuf,verbose, 
+    basic, random, dump, dump_name, fname_out.c_str(), 
+    has_time_limit, max_execution_time_seconds);
   cout << "[INFO] finished IC3 check" << endl;
   // print 0/1 according to AIGER standard
   if (rv) {

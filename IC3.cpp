@@ -25,7 +25,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <iostream>
 #include <set>
 #include <sys/times.h>
-
+#include <future>
+#include <chrono>
 #include "IC3.h"
 #include "Solver.h"
 #include "Vec.h"
@@ -971,7 +972,7 @@ namespace IC3 {
   }
 
   // External function to make the magic happen.
-  bool check(Model & model, const ClauseBuf & clsbuf, int verbose, bool basic, bool random, 
+  bool check(Model & model,const ClauseBuf & clsbuf, int verbose, bool basic, bool random, 
   bool dump, bool dump_name, const char * dump_file_target) {
     if (!baseCases(model)) {
       if (dump) {
@@ -999,6 +1000,33 @@ namespace IC3 {
     if (verbose) ic3.printStats();
     if (rv && dump) ic3.printInvariant(dump_name, dump_file_target);
     return rv;
+  }
+
+  bool check_wrapper(Model & model, const ClauseBuf & clsbuf, int verbose, bool basic, bool random, 
+    bool dump, bool dump_name, const char * dump_file_target, 
+    bool has_time_limit, int max_execution_time_seconds) {
+    bool rv;
+    if (!has_time_limit) {
+      rv = check(model,
+      clsbuf,verbose, basic, random, dump, dump_name,dump_file_target);
+      return rv;
+    } else {      
+      auto future = std::async(std::launch::async, check,  
+        std::ref(model), clsbuf,verbose, basic, random, dump, dump_name,dump_file_target);
+      if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready) {
+          rv = future.get(); 
+      } else {
+          std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
+          // dump
+          if (verbose > 2) {
+            std::cout << "CTI info at stucked frame" << std::endl;
+            //ic3_ptr->print_record_cti_stat();
+          }
+          rv = false;
+          std::exit(rv);
+          return rv;
+      }
+    }
   }
 
 }
