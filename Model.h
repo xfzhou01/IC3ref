@@ -29,6 +29,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include <fstream>
+#include <map>
+
 
 extern "C" {
 #include "aiger.h"
@@ -128,7 +131,7 @@ public:
     stringstream ss;
     if (Minisat::sign(lit)) ss << "~";
     ss << varOfLit(lit).name();
-    return ss.str();
+    return ss.str(); 
   }
 
   // Returns the primed Var/Minisat::Lit for the given

@@ -130,7 +130,7 @@ namespace IC3 {
 
   class IC3 {
   public:
-    IC3(Model & _model) :
+    IC3(Model & _model) :inductive_frame(-1),
       verbose(0), random(false), model(_model), k(1), nextState(0),
       litOrder(), slimLitOrder(),
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
@@ -151,6 +151,9 @@ namespace IC3 {
            i != model.invariantConstraints().end(); ++i)
         cls.push(model.primeLit(~*i));
       lifts->addClause_(cls);
+
+      time_spend_on_strengthen = 0;
+      time_spend_on_propagate = 0;
     }
     ~IC3() {
       for (vector<Frame>::const_iterator i = frames.begin(); 
@@ -159,14 +162,50 @@ namespace IC3 {
       delete lifts;
     }
 
+    void insert_helper_clause(const ClauseBuf & clsbuf, unsigned fidx) {
+      assert(fidx < frames.size());
+      for (const auto & clause : clsbuf.clauses) {
+        vector<Minisat::Lit> cls;
+        for (int lit : clause) {
+          cls.push_back(Minisat::toLit(lit));
+        }
+        addCube(fidx, cls);
+      }
+    }
     // The main loop.
-    bool check() {
+    bool check(const ClauseBuf & clsbuf) {
       startTime = time();  // stats
+      bool first_frame = true;
+      
       while (true) {
         if (verbose > 1) cout << "Level " << k << endl;
-        extend();                         // push frontier frame
-        if (!strengthen()) return false;  // strengthen to remove bad successors
-        if (propagate()) return true;     // propagate clauses; check for proof
+        
+        extend(clsbuf);                         // push frontier frame
+        if (verbose > 1) cout << "extend" << endl;
+
+
+        // ** Guangyu's helper clause addition **
+        if (first_frame) {
+          first_frame = false;
+          insert_helper_clause(clsbuf, 1);
+        }
+        // 
+        
+        time_t timer_check = time();
+        bool strengthen_result = strengthen();
+        time_spend_on_strengthen += (time() - timer_check);
+        if (verbose > 1) cout << "strengthen" << endl;
+        if (!strengthen_result) return false;  // strengthen to remove bad successors
+
+        timer_check = time();
+        bool propagate_result = propagate();
+        if (verbose > 1) cout << "propagate" << endl;
+        time_spend_on_propagate += (time() - timer_check);
+
+        if (propagate_result) {
+          
+          return true;
+        }     // propagate clauses; check for proof
         printStats();
         ++k;                              // increment frontier
       }
@@ -183,9 +222,31 @@ namespace IC3 {
         }
       }
     }
-
-  private:
-
+    int inductive_frame;
+    void printInvariant(bool dump_name, const char *dump_file_target) {
+    //  IC3 might terminate while propagation (when all pushed)
+    //     so it might not be appropriate to use the last frame
+    auto & flast = (inductive_frame != -1) ? frames.at(inductive_frame+1) : frames.back();
+    cout << "unsat frame is #" << inductive_frame << endl;
+    std::ofstream fout(dump_file_target);
+    fout << "unsat " << flast.borderCubes.size() << " " << frames.size() << endl;
+    cout << "unsat " << flast.borderCubes.size() << " " << frames.size() << endl;
+    for( auto & clause : flast.borderCubes) {
+      for (auto & lit : clause) {
+        if (!dump_name) {
+          cout << lit.x << " ";
+          fout << lit.x << " ";
+        } else {
+          cout << model.stringOfLit(lit) << " ";
+          fout << model.stringOfLit(lit) << " ";
+        }
+      }
+      cout << endl;
+      fout << endl;
+    }
+  }
+  //private:
+  public:
     int verbose; // 0: silent, 1: stats, 2: all
     bool random;
 
@@ -301,18 +362,26 @@ namespace IC3 {
     Minisat::Lit notInvConstraints;
 
     // Push a new Frame.
-    void extend() {
+    void extend(const ClauseBuf &clsbuf) {
       while (frames.size() < k+2) {
         frames.resize(frames.size()+1);
         Frame & fr = frames.back();
+
         fr.k = frames.size()-1;
         fr.consecution = model.newSolver();
         if (random) {
           fr.consecution->random_seed = rand();
           fr.consecution->rnd_init_act = true;
         }
+        
         if (fr.k == 0) model.loadInitialCondition(*fr.consecution);
         model.loadTransitionRelation(*fr.consecution);
+
+        // ** My sideload
+        // if (fr.k >= 1) {
+        //   insert_helper_clause(clsbuf, fr.k);
+        // }
+        //
       }
     }
 
@@ -326,7 +395,11 @@ namespace IC3 {
       vector<float> counts;
       size_t _mini;
       void count(const LitVec & cube) {
-        assert (!cube.empty());
+        if (cube.empty()) {
+          cout << "[ERROR] consider whether add a conflict assumption" << endl;
+          assert(false);
+        }
+        //assert (!cube.empty() && "consider whether add a conflict assumption");
         // assumes cube is ordered
         size_t sz = (size_t) Minisat::toInt(Minisat::var(cube.back()));
         if (sz >= counts.size()) counts.resize(sz+1);
@@ -476,7 +549,9 @@ namespace IC3 {
       // ... now prime
       for (int i = 1; i < assumps.size(); ++i)
         assumps[i] = model.primeLit(assumps[i]);
+
       fr.consecution->addClause_(cls);
+
       // F_fi & ~latches & T & latches'
       ++nQuery; startTimer();  // stats
       bool rv = fr.consecution->solve(assumps);
@@ -641,15 +716,18 @@ namespace IC3 {
       sort(cube.begin(), cube.end());
       pair<CubeSet::iterator, bool> rv = frames[level].borderCubes.insert(cube);
       if (!rv.second) return;
-      if (!silent && verbose > 1) 
-        cout << level << ": " << stringOfLitVec(cube) << endl;
+      // add cube cout
+      // if (!silent && verbose > 1) 
+      //   cout << level << ": " << stringOfLitVec(cube) << endl;
       earliest = min(earliest, level);
       MSLitVec cls;
       cls.capacity(cube.size());
       for (LitVec::const_iterator i = cube.begin(); i != cube.end(); ++i)
         cls.push(~*i);
-      for (size_t i = toAll ? 1 : level; i <= level; ++i)
+      for (size_t i = toAll ? 1 : level; i <= level; ++i){
+        // record
         frames[i].consecution->addClause(cls);
+      }
       if (toAll && !silent) updateLitOrder(cube, level);
     }
 
@@ -701,6 +779,7 @@ namespace IC3 {
                    // during major iteration
 
     // Strengthens frontier to remove error successors.
+    clock_t time_spend_on_strengthen;
     bool strengthen() {
       Frame & frontier = frames[k];
       trivial = true;  // whether any cubes are generated
@@ -728,6 +807,7 @@ namespace IC3 {
     // sets agree; hence those clause sets are inductive
     // strengthenings of the property.  See the four invariants of IC3
     // in the original paper.
+    clock_t time_spend_on_propagate;
     bool propagate() {
       if (verbose > 1) cout << "propagate" << endl;
       // 1. clean up: remove c in frame i if c appears in frame j when i < j
@@ -771,10 +851,12 @@ namespace IC3 {
             ++j;
           }
         }
-        if (verbose > 1)
-          cout << i << " " << ckeep << " " << cprop << " " << cdrop << endl;
-        if (fr.borderCubes.empty())
+        if (verbose > 1) 
+          cout << i << " ckeep: " << ckeep << " cprop: " << cprop << " cdrop: " << cdrop << endl;
+        if (fr.borderCubes.empty()) {
+          inductive_frame = i;
           return true;
+        }
       }
       // 3. simplify frames
       for (size_t i = trivial ? k : 1; i <= k+1; ++i)
@@ -801,6 +883,8 @@ namespace IC3 {
       etime -= startTime;
       if (!etime) etime = 1;
       cout << ". % SAT:        " << (int) (100 * (((double) satTime) / ((double) etime))) << endl;
+      // cout << ". % Strengthen  " << (100 * (((double) time_spend_on_strengthen) / ((double) etime))) << endl;
+      // cout << ". % Propagate   " << (100 * (((double) time_spend_on_propagate)  / ((double) etime))) << endl;
       cout << ". K:            " << k << endl;
       cout << ". # Queries:    " << nQuery << endl;
       cout << ". # CTIs:       " << nCTI << endl;
@@ -814,7 +898,8 @@ namespace IC3 {
       if (numUpdates) cout << ". Avg lits/cls: " << numLits / numUpdates << endl;
     }
 
-    friend bool check(Model &, int, bool, bool);
+    friend bool check(Model & model, const ClauseBuf & clsbuf, int verbose, 
+    bool basic, bool random, bool dump, bool dump_name);
 
   };
 
@@ -826,14 +911,20 @@ namespace IC3 {
     model.loadError(*base0);
     bool rv = base0->solve(model.error());
     delete base0;
-    if (rv) return false;
+    if (rv) {
+      cout << "[INFO] step0 violated" << endl;
+      return false;
+    }
 
     Minisat::Solver * base1 = model.newSolver();
     model.loadInitialCondition(*base1);
     model.loadTransitionRelation(*base1);
     rv = base1->solve(model.primedError());
     delete base1;
-    if (rv) return false;
+    if (rv) {
+      cout << "[INFO] step1 violated" << endl;
+      return false;
+    }
 
     model.lockPrimes();
 
@@ -841,9 +932,15 @@ namespace IC3 {
   }
 
   // External function to make the magic happen.
-  bool check(Model & model, int verbose, bool basic, bool random) {
-    if (!baseCases(model))
+  bool check(Model & model, const ClauseBuf & clsbuf, int verbose, bool basic, bool random, 
+  bool dump, bool dump_name, const char * dump_file_target) {
+    if (!baseCases(model)) {
+      if (dump) {
+        std::ofstream fout(dump_file_target);
+        fout << "sat" << endl;
+      }
       return false;
+    }
     IC3 ic3(model);
     ic3.verbose = verbose;
     if (basic) {
@@ -852,9 +949,16 @@ namespace IC3 {
       ic3.maxCTGs = 0;
     }
     if (random) ic3.random = true;
-    bool rv = ic3.check();
-    if (!rv && verbose > 1) ic3.printWitness();
+    bool rv = ic3.check(clsbuf);
+    if (!rv && verbose > 1) {
+      ic3.printWitness();
+    }
+    if (!rv && dump) {
+        std::ofstream fout(dump_file_target);
+        fout << "sat" << endl;
+    }
     if (verbose) ic3.printStats();
+    if (rv && dump) ic3.printInvariant(dump_name, dump_file_target);
     return rv;
   }
 
