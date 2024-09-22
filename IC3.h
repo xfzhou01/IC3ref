@@ -28,7 +28,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "clausebuf.h"
 
 namespace IC3 {
-  class IC3;
+
   bool check(Model & model,
              const ClauseBuf & clsbuf,
              int verbose = 0,       // 0: silent, 1: stats, 2: informative
@@ -37,8 +37,7 @@ namespace IC3 {
              bool dump = false,
              bool dump_name= false,
              const char * fname_out = NULL);
-  bool check_wrapper(Model & model, const ClauseBuf & clsbuf, int verbose, bool basic, bool random, 
-  bool dump, bool dump_name, const char * dump_file_target, bool has_time_limit, int max_execution_time_seconds);
+
 }
 
 #endif
