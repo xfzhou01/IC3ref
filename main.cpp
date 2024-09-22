@@ -93,9 +93,6 @@ int main(int argc, char ** argv) {
     else if (string(argv[i]) == "-v3") {
       verbose = 3;
     }
-    else if (string(argv[i]) == "-v4") {
-      verbose = 4;
-    }
     else if (string(argv[i]) == "-s")
       // option: print statistics
       verbose = max(1, verbose);
