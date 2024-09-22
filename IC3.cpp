@@ -751,6 +751,17 @@ namespace IC3 {
         Obligation obl = *obli;
         LitVec core;
         size_t predi;
+
+        // xf: print CTI
+        if (verbose > 2) {
+          std::cout << "CTI: ";
+          for (auto l : state(obl.state).latches) {
+            std::cout << l.x << " ";
+          }
+          std::cout << std::endl;
+        }
+
+
         // Is the obligation fulfilled?
         if (consecution(obl.level, state(obl.state).latches, obl.state, 
                         &core, &predi)) {

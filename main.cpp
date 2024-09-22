@@ -41,6 +41,7 @@ extern "C" {
 void print_help_info() {
   std::cout << "------- Help info -------" << std::endl;
   std::cout << "    -v: verbose = 2" << std::endl;
+  std::cout << "    -v3: verbose = 3" << std::endl;
   std::cout << "    -s: print statistics" << std::endl;
   std::cout << "    -r: random" << std::endl;
   std::cout << "    -f <file>: frame file" << std::endl;
@@ -85,9 +86,13 @@ int main(int argc, char ** argv) {
       print_help_info();
       exit(0);
     }
-    if (string(argv[i]) == "-v")
+    if (string(argv[i]) == "-v") {
       // option: verbosity
       verbose = 2;
+    }
+    else if (string(argv[i]) == "-v3") {
+      verbose = 3;
+    }
     else if (string(argv[i]) == "-s")
       // option: print statistics
       verbose = max(1, verbose);
@@ -109,7 +114,6 @@ int main(int argc, char ** argv) {
       } else {
         fname_out = argv[++i];
       }
-      
     }
     else if (string(argv[i]) == "-e") {
       dump_name = true;
