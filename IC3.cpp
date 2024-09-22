@@ -767,7 +767,7 @@ namespace IC3 {
             if (lvc[frame_idx].find(var_number) != lvc[frame_idx].end()) {
               lvc[frame_idx][var_number] += 1;
             } else {
-              lvc[frame_idx][var_number] = 0;
+              lvc[frame_idx][var_number] = 1;
             }
           }
         }
