@@ -368,6 +368,8 @@ namespace IC3 {
         frames.resize(frames.size()+1);
         Frame & fr = frames.back();
 
+        this->level_var_to_count.resize(frames.size()+1);
+
         fr.k = frames.size()-1;
         fr.consecution = model.newSolver();
         if (random) {
@@ -746,15 +748,29 @@ namespace IC3 {
     size_t cexState;  // beginning of counterexample trace
 
     // Process obligations according to priority.
+    // record cti status
+    std::vector<std::map<int, int>> level_var_to_count;
     bool handleObligations(PriorityQueue obls) {
       while (!obls.empty()) {
         PriorityQueue::iterator obli = obls.begin();
         Obligation obl = *obli;
         LitVec core;
         size_t predi;
-
-        // xf: print CTI
+        // xf: record CTI
         if (verbose > 2) {
+          int frame_idx = this->frames.size() - 1;
+          for (auto l : state(obl.state).latches) {
+            int l_number = (int)l.x;
+            int var_number = l_number >> 1;
+            if (this->level_var_to_count[frame_idx].find(var_number) != this->level_var_to_count[frame_idx].end()) {
+              this->level_var_to_count[frame_idx][var_number] += 1;
+            } else {
+              this->level_var_to_count[frame_idx][var_number] = 0;
+            }
+          }
+        }
+        // xf: print CTI
+        if (verbose > 3) {
           std::cout << "CTI: ";
           for (auto l : state(obl.state).latches) {
             std::cout << l.x << " ";
@@ -907,7 +923,19 @@ namespace IC3 {
       cout << ". # Red. cores: " << nCoreReduced << endl;
       cout << ". # Int. joins: " << nAbortJoin << endl;
       cout << ". # Int. mics:  " << nAbortMic << endl;
+      if (verbose > 2) {
+        print_record_cti_stat();
+      }
       if (numUpdates) cout << ". Avg lits/cls: " << numLits / numUpdates << endl;
+    }
+
+    void print_record_cti_stat() {
+      auto &m_tmp = this->level_var_to_count[this->frames.size() - 1];
+      std::cout << ". CTI stat begin:" << std::endl;
+      for (auto &p_tmp : m_tmp) {
+        std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
+      }
+      std::cout << ". CTI stat end" << std::endl;
     }
 
     friend bool check(Model & model, const ClauseBuf & clsbuf, int verbose, 
