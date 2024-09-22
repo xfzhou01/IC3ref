@@ -36,7 +36,8 @@ namespace IC3 {
              bool random = false,   // random runs for statistical profiling
              bool dump = false,
              bool dump_name= false,
-             const char * fname_out = NULL);
+             const char * fname_out = NULL,
+             std::vector<std::map<int, int>> *lvcp = nullptr);
 
 }
 

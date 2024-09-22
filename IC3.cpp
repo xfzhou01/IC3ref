@@ -173,9 +173,10 @@ namespace IC3 {
       }
     }
     // The main loop.
-    bool check(const ClauseBuf & clsbuf) {
+    bool check(const ClauseBuf & clsbuf, std::vector<std::map<int, int>> *lvcp) {
       startTime = time();  // stats
       bool first_frame = true;
+      this->level_var_to_count = lvcp;
       
       while (true) {
         if (verbose > 1) cout << "Level " << k << endl;
@@ -367,7 +368,7 @@ namespace IC3 {
         frames.resize(frames.size()+1);
         Frame & fr = frames.back();
 
-        this->level_var_to_count.resize(frames.size()+1);
+        this->level_var_to_count->resize(frames.size()+1);
 
         fr.k = frames.size()-1;
         fr.consecution = model.newSolver();
@@ -748,7 +749,7 @@ namespace IC3 {
 
     // Process obligations according to priority.
     // record cti status
-    std::vector<std::map<int, int>> level_var_to_count;
+    std::vector<std::map<int, int>> *level_var_to_count;
     bool handleObligations(PriorityQueue obls) {
       while (!obls.empty()) {
         PriorityQueue::iterator obli = obls.begin();
@@ -757,14 +758,15 @@ namespace IC3 {
         size_t predi;
         // xf: record CTI
         if (verbose > 2) {
+          std::vector<std::map<int, int>> &lvc = *this->level_var_to_count;
           int frame_idx = this->frames.size() - 1;
           for (auto l : state(obl.state).latches) {
             int l_number = (int)l.x;
             int var_number = l_number >> 1;
-            if (this->level_var_to_count[frame_idx].find(var_number) != this->level_var_to_count[frame_idx].end()) {
-              this->level_var_to_count[frame_idx][var_number] += 1;
+            if (lvc[frame_idx].find(var_number) != lvc[frame_idx].end()) {
+              lvc[frame_idx][var_number] += 1;
             } else {
-              this->level_var_to_count[frame_idx][var_number] = 0;
+              lvc[frame_idx][var_number] = 0;
             }
           }
         }
@@ -929,7 +931,8 @@ namespace IC3 {
     }
 
     void print_record_cti_stat() {
-      auto &m_tmp = this->level_var_to_count[this->frames.size() - 1];
+      std::vector<std::map<int, int>> &lvc = *this->level_var_to_count;
+      auto &m_tmp = lvc[this->frames.size() - 1];
       std::cout << ". CTI stat begin:" << std::endl;
       for (auto &p_tmp : m_tmp) {
         std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
@@ -972,7 +975,7 @@ namespace IC3 {
 
   // External function to make the magic happen.
   bool check(Model & model, const ClauseBuf & clsbuf, int verbose, bool basic, bool random, 
-  bool dump, bool dump_name, const char * dump_file_target) {
+  bool dump, bool dump_name, const char * dump_file_target, std::vector<std::map<int, int>> *lvcp) {
     if (!baseCases(model)) {
       if (dump) {
         std::ofstream fout(dump_file_target);
@@ -988,7 +991,7 @@ namespace IC3 {
       ic3.maxCTGs = 0;
     }
     if (random) ic3.random = true;
-    bool rv = ic3.check(clsbuf);
+    bool rv = ic3.check(clsbuf, lvcp);
     if (!rv && verbose > 1) {
       ic3.printWitness();
     }

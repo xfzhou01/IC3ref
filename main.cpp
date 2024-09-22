@@ -187,14 +187,22 @@ int main(int argc, char ** argv) {
 
 
   bool rv;
+  std::vector<std::map<int, int>> lvcp;
   if (!has_time_limit) {
-    rv = IC3::check(*model, clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str());
+    rv = IC3::check(*model, clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
   } else {
-    auto future = std::async(std::launch::async, IC3::check, std::ref(*model), clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str());
+    auto future = std::async(std::launch::async, IC3::check, std::ref(*model), clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
     if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready) {
         rv = future.get(); 
     } else {
         std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
+        std::cout << "the CTI encountered at stuck point" << std::endl;
+        auto &m_tmp = lvcp[lvcp.size() - 1];
+        std::cout << ". CTI stat begin:" << std::endl;
+        for (auto &p_tmp : m_tmp) {
+          std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
+        }
+        std::cout << ". CTI stat end" << std::endl;
         rv = false;
         std::exit(rv);
         return rv;
