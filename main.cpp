@@ -99,7 +99,7 @@ int main(int argc, char ** argv) {
     else if (string(argv[i]) == "-s") {
       // option: print statistics
       verbose = max(1, verbose);
-    } 
+    }  
     else if (string(argv[i]) == "-r") {
       // option: randomize the run, which is useful in performance
       // testing; default behavior is deterministic
