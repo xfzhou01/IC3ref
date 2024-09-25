@@ -70,6 +70,36 @@ bool ClauseBuf::from_file(const char *fname) {
     return true;
 }
 
+bool ClauseBuf::from_ckp_string(std::string &ckp_frame)
+{
+    // strip
+    auto start = ckp_frame.find_first_not_of(" \t\n\r\f\v");
+    auto end = ckp_frame.find_last_not_of(" \t\n\r\f\v");
+    ckp_frame = ckp_frame.substr(start, end - start + 1);;
+
+    bool pushed_new_clause = false;
+    int literal_tmp = 0;
+    for (int i = 0; i < ckp_frame.size(); i++)
+    {
+        if(ckp_frame[i] == '\n' && !pushed_new_clause) {
+            pushed_new_clause = true;
+            this->clauses.push_back(std::vector<int>());
+        } 
+        else if (isdigit(ckp_frame[i])) {
+            if (this->clauses.size() == 0) {
+                this->clauses.push_back(std::vector<int>());
+            }
+            pushed_new_clause = false;
+            literal_tmp *= 10;
+            literal_tmp += (int)(ckp_frame[i] - '0');
+        }
+        else if (ckp_frame[i] == ' ') {
+            this->clauses.back().push_back(literal_tmp);
+            literal_tmp = 0;
+        }
+    }
+    return true;
+}
 
 void ClauseBuf::dump() const {
     for (const auto & cls : clauses) {

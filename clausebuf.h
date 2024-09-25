@@ -26,10 +26,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define CLAUSEBUF_H_INCLUDED
 
 #include <vector>
-
+#include <string>
 struct ClauseBuf{
     std::vector<std::vector<int> > clauses;
     bool from_file(const char *fname);
+    bool from_ckp_string(std::string &ckp_frame);
     void dump() const;
 };
 

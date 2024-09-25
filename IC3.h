@@ -31,13 +31,15 @@ namespace IC3 {
 
   bool check(Model & model,
              const ClauseBuf & clsbuf,
+             std::vector<ClauseBuf> &ckp,
              int verbose = 0,       // 0: silent, 1: stats, 2: informative
              bool basic = false,    // simple inductive generalization
              bool random = false,   // random runs for statistical profiling
              bool dump = false,
              bool dump_name= false,
              const char * fname_out = NULL,
-             std::vector<std::map<int, int>> *lvcp = nullptr);
+             std::vector<std::map<int, int>> *lvcp = nullptr
+             );
 
 }
 

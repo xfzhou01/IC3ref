@@ -173,7 +173,8 @@ namespace IC3 {
       }
     }
     // The main loop.
-    bool check(const ClauseBuf & clsbuf, std::vector<std::map<int, int>> *lvcp) {
+    bool check(const ClauseBuf & clsbuf, std::vector<std::map<int, int>> *lvcp,
+    const std::vector<ClauseBuf> &ckp) {
       startTime = time();  // stats
       bool first_frame = true;
       this->level_var_to_count = lvcp;
@@ -183,7 +184,10 @@ namespace IC3 {
         
         extend(clsbuf);                         // push frontier frame
         if (verbose > 1) cout << "extend" << endl;
-
+        // load clause 
+        if (k-1 < ckp.size()) {
+          insert_helper_clause(ckp[k-1], k);
+        }
 
         // ** Guangyu's helper clause addition **
         if (first_frame) {
@@ -975,7 +979,8 @@ namespace IC3 {
   }
 
   // External function to make the magic happen.
-  bool check(Model & model, const ClauseBuf & clsbuf, int verbose, bool basic, bool random, 
+  bool check(Model & model, const ClauseBuf & clsbuf,
+  std::vector<ClauseBuf> &ckp, int verbose, bool basic, bool random, 
   bool dump, bool dump_name, const char * dump_file_target, std::vector<std::map<int, int>> *lvcp) {
     if (!baseCases(model)) {
       if (dump) {
@@ -992,7 +997,7 @@ namespace IC3 {
       ic3.maxCTGs = 0;
     }
     if (random) ic3.random = true;
-    bool rv = ic3.check(clsbuf, lvcp);
+    bool rv = ic3.check(clsbuf, lvcp, ckp);
     if (!rv && verbose > 1) {
       ic3.printWitness();
     }

@@ -44,8 +44,10 @@ void print_help_info() {
   std::cout << "    -v3: verbose = 3" << std::endl;
   std::cout << "    -s: print statistics" << std::endl;
   std::cout << "    -r: random" << std::endl;
+  std::cout << "    -c <file>: checkpoint file" << std::endl;
   std::cout << "    -f <file>: frame file" << std::endl;
   std::cout << "    -d <file>: dump the inductive invariants to <file> (inv.cnf) by default" << std::endl;
+  std::cout << "    -dc <file>: dump the check points to <file> (checkpoint.ckp) by default" << std::endl;
   std::cout << "    -e: in dump invariant file, whether to show variable string or literal number" << std::endl;
   std::cout << "    -i: load aig from file " << std::endl; 
   std::cout << "    -b: use basic generalization" << std::endl;
@@ -66,6 +68,30 @@ bool is_string_contain_dash(const char *s) {
   return false;
 }
 
+void extract_frame_segement(const std::string& filename, std::vector<std::string>& parts) {
+    std::ifstream file(filename); 
+    std::string contents = "";
+    if (file) {
+        std::stringstream buffer;
+        buffer << file.rdbuf();  
+        contents = buffer.str();  
+    } else {
+        std::cout << "cannot open file: " << filename  << std::endl;
+    }
+    size_t pos = 0;
+    size_t end;
+    std::string delimiter = "F";
+    while ((end = contents.find(delimiter, pos)) != std::string::npos) {
+        parts.push_back(contents.substr(pos, end - pos));
+        pos = end + delimiter.length();
+    }
+    parts.push_back(contents.substr(pos));
+}
+
+
+
+
+
 int main(int argc, char ** argv) {
   std::cout << "***** IC3Ref *****" << std::endl;
   unsigned int propertyIndex = 0;
@@ -75,10 +101,14 @@ int main(int argc, char ** argv) {
   bool dump_name = false;
   const char * fname = NULL;
   ClauseBuf clsbuf;
+  std::vector<ClauseBuf> checkpoint_clsbuf;
   std::string fname_out = "inv.cnf";
-
+  std::string checkpoint_fname_in = "";
+  std::string checkpoint_fname_out = "checkpoint.ckp";
 
   bool has_time_limit = false;
+  bool has_checkpoint = false;
+
   int max_execution_time_seconds = -1;
 
   for (int i = 1; i < argc; ++i) {
@@ -95,6 +125,25 @@ int main(int argc, char ** argv) {
     }
     else if (string(argv[i]) == "-v4") {
       verbose = 4;
+    } else if (string(argv[i]) == "-c") {
+      has_checkpoint = true;
+      if (i+1 >= argc) {
+        std::cout << "[INFO] missing checkpoint file name for `-c`" << endl;
+        return 0;
+      } else if (is_string_contain_dash(argv[i+1])) {
+        std::cout << "[INFO] missing checkpoint file name for `-c`"  << endl;
+        return 0;
+      } else {
+        checkpoint_fname_in = argv[++i];
+      }
+      std::vector<std::string> frame_str_parts;
+      std::vector<ClauseBuf> frame_buf_list;
+      extract_frame_segement(checkpoint_fname_in, frame_str_parts);
+      for (auto &frame_str : frame_str_parts) {
+        ClauseBuf frame_buf_ckp_load;
+        frame_buf_ckp_load.from_ckp_string(frame_str);
+        frame_buf_list.push_back(frame_buf_ckp_load);
+      }
     }
     else if (string(argv[i]) == "-s") {
       // option: print statistics
@@ -119,6 +168,20 @@ int main(int argc, char ** argv) {
         fname_out = argv[++i];
       }
     }
+    else if (string(argv[i]) == "-dc") {
+      // option: dump ckp results to checkpoint.ckp
+      dump = true;
+      if (i+1 >= argc) {
+        std::cout << "[INFO] missing dump target file name for `-dc`" << endl;
+        std::cout << "[INFO] use default as checkpoint.ckp" << endl;
+      } else if (is_string_contain_dash(argv[i+1])) {
+        std::cout << "[INFO] missing dump target file name for `-dc`"  << endl;
+        std::cout << "[INFO] use default as checkpoint.ckp" << endl;
+      } else {
+        checkpoint_fname_out = argv[++i];
+      }
+    }
+
     else if (string(argv[i]) == "-e") {
       dump_name = true;
     }
@@ -190,9 +253,12 @@ int main(int argc, char ** argv) {
   bool rv;
   std::vector<std::map<int, int>> lvcp;
   if (!has_time_limit) {
-    rv = IC3::check(*model, clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
+    rv = IC3::check(*model, clsbuf,checkpoint_clsbuf,
+    verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
   } else {
-    auto future = std::async(std::launch::async, IC3::check, std::ref(*model), clsbuf,verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
+    auto future = std::async(std::launch::async, IC3::check, 
+    std::ref(*model), clsbuf,std::ref(checkpoint_clsbuf),
+    verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
     if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready) {
         rv = future.get(); 
     } else {
