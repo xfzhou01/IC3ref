@@ -130,12 +130,12 @@ namespace IC3 {
 
   class IC3 {
   public:
-    IC3(Model & _model) :inductive_frame(-1),
+    IC3(Model & _model, std::vector<std::vector<std::vector<int>>> *_frames_cp) :inductive_frame(-1),
       verbose(0), random(false), model(_model), k(1), nextState(0),
       litOrder(), slimLitOrder(),
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
-      nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0)
+      nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0), frames_cp(_frames_cp)
     {
       slimLitOrder.heuristicLitOrder = &litOrder;
 
@@ -161,7 +161,7 @@ namespace IC3 {
         if (i->consecution) delete i->consecution;
       delete lifts;
     }
-
+    std::vector<std::vector<std::vector<int>>> *frames_cp;
     void insert_helper_clause(const ClauseBuf & clsbuf, unsigned fidx) {
       assert(fidx < frames.size());
       for (const auto & clause : clsbuf.clauses) {
@@ -201,11 +201,42 @@ namespace IC3 {
         time_spend_on_strengthen += (time() - timer_check);
         if (verbose > 1) cout << "strengthen" << endl;
         if (!strengthen_result) return false;  // strengthen to remove bad successors
+        
+        this->frames_cp->clear();
+        for (auto &f : this->frames) {
+          auto &v = *(this->frames_cp);
+          v.resize(v.size() + 1);
+          for (auto &clause_tmp : f.borderCubes) {
+            auto c_cp = v[v.size()-1];
+            c_cp.resize(c_cp.size()+1);
+            for (auto &lit : clause_tmp) {
+              c_cp[c_cp.size()-1].push_back(lit.x);
+            }
+          }
+        }
+        // this is a marker
+        this->frames_cp->push_back({{-1}});
+
 
         timer_check = time();
         bool propagate_result = propagate();
         if (verbose > 1) cout << "propagate" << endl;
         time_spend_on_propagate += (time() - timer_check);
+
+        this->frames_cp->clear();
+        for (auto &f : this->frames) {
+          auto &v = *(this->frames_cp);
+          v.resize(v.size() + 1);
+          for (auto &clause_tmp : f.borderCubes) {
+            auto c_cp = v[v.size()-1];
+            c_cp.resize(c_cp.size()+1);
+            for (auto &lit : clause_tmp) {
+              c_cp[c_cp.size()-1].push_back(lit.x);
+            }
+          }
+        }
+        // this is a marker
+        this->frames_cp->push_back({{-1}});
 
         if (propagate_result) {
           
@@ -362,6 +393,8 @@ namespace IC3 {
       Minisat::Solver * consecution;
     };
     vector<Frame> frames;
+public:
+    vector<vector<int>> *frames_cp;
 
     Minisat::Solver * lifts;
     Minisat::Lit notInvConstraints;
@@ -981,7 +1014,8 @@ namespace IC3 {
   // External function to make the magic happen.
   bool check(Model & model, const ClauseBuf & clsbuf,
   std::vector<ClauseBuf> &ckp, int verbose, bool basic, bool random, 
-  bool dump, bool dump_name, const char * dump_file_target, std::vector<std::map<int, int>> *lvcp) {
+  bool dump, bool dump_name, const char * dump_file_target, 
+  std::vector<std::map<int, int>> *lvcp, std::vector<std::vector<std::vector<int>>> *frames_cp_ptr) {
     if (!baseCases(model)) {
       if (dump) {
         std::ofstream fout(dump_file_target);
@@ -989,7 +1023,7 @@ namespace IC3 {
       }
       return false;
     }
-    IC3 ic3(model);
+    IC3 ic3(model, frames_cp_ptr);
     ic3.verbose = verbose;
     if (basic) {
       ic3.maxDepth = 0;

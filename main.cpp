@@ -88,6 +88,34 @@ void extract_frame_segement(const std::string& filename, std::vector<std::string
     parts.push_back(contents.substr(pos));
 }
 
+void write_frame_segement(const std::vector<std::vector<std::vector<int>>> &frames_cp,
+std::string &out_file_path) {
+
+  // sanity check
+  bool valid = frames_cp.back().back().back() == -1;
+  assert(valid);
+  // write to file
+  std::string res_str = "";
+  for (auto &ff : frames_cp) {
+    for (auto &cls : ff) {
+      for (auto lit : cls) {
+        res_str += std::to_string(lit);
+        res_str += " ";
+      }
+      res_str += "\n";
+    }
+    res_str += "F";
+    res_str += "\n";
+  }
+  std::ofstream outFile(out_file_path);
+  if (outFile.is_open()) {
+        outFile << res_str;
+        outFile.close();
+    } else {
+        std::cerr << "Failed to open the file." << std::endl;
+    }
+}
+
 
 
 
@@ -252,13 +280,15 @@ int main(int argc, char ** argv) {
 
   bool rv;
   std::vector<std::map<int, int>> lvcp;
+  std::vector<std::vector<std::vector<int>>> frames_cp;
   if (!has_time_limit) {
     rv = IC3::check(*model, clsbuf,checkpoint_clsbuf,
-    verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
+    verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp, &frames_cp);
   } else {
     auto future = std::async(std::launch::async, IC3::check, 
     std::ref(*model), clsbuf,std::ref(checkpoint_clsbuf),
-    verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp);
+    verbose, basic, random, dump, dump_name, fname_out.c_str(), 
+    &lvcp, &frames_cp);
     if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready) {
         rv = future.get(); 
     } else {
@@ -270,6 +300,7 @@ int main(int argc, char ** argv) {
           std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
         }
         std::cout << ". CTI stat end" << std::endl;
+        write_frame_segement(frames_cp, checkpoint_fname_out);
         rv = false;
         std::exit(rv);
         return rv;

@@ -38,7 +38,8 @@ namespace IC3 {
              bool dump = false,
              bool dump_name= false,
              const char * fname_out = NULL,
-             std::vector<std::map<int, int>> *lvcp = nullptr
+             std::vector<std::map<int, int>> *lvcp = nullptr,
+             std::vector<std::vector<std::vector<int>>> *frames_cp_ptr = nullptr
              );
 
 }
