@@ -78,6 +78,10 @@ void extract_frame_segement(const std::string& filename, std::vector<std::string
     } else {
         std::cout << "cannot open file: " << filename  << std::endl;
     }
+    if (contents.size() == 0) {
+      cout << "[ERROR] empty checkpoint file name " << filename << endl; 
+      assert(false);
+    }
     size_t pos = 0;
     size_t end;
     std::string delimiter = "F";
@@ -90,7 +94,6 @@ void extract_frame_segement(const std::string& filename, std::vector<std::string
 
 void write_frame_segement(const std::vector<std::vector<std::vector<int>>> &frames_cp,
 std::string &out_file_path) {
-
   // sanity check
   bool valid = frames_cp.back().back().back() == -1;
   assert(valid);
@@ -99,6 +102,9 @@ std::string &out_file_path) {
   for (auto &ff : frames_cp) {
     for (auto &cls : ff) {
       for (auto lit : cls) {
+        if (lit == -1) {
+          break;
+        }
         res_str += std::to_string(lit);
         res_str += " ";
       }

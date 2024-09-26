@@ -27,6 +27,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <assert.h>
 
 using namespace std;
 
@@ -73,10 +74,16 @@ bool ClauseBuf::from_file(const char *fname) {
 bool ClauseBuf::from_ckp_string(std::string &ckp_frame)
 {
     // strip
+    assert(ckp_frame.size() != 0);
     auto start = ckp_frame.find_first_not_of(" \t\n\r\f\v");
     auto end = ckp_frame.find_last_not_of(" \t\n\r\f\v");
+    if (start == std::string::npos) {
+        start = 0;
+    }
+    if (end == std::string::npos) {
+        end = ckp_frame.size() -1 ;
+    }
     ckp_frame = ckp_frame.substr(start, end - start + 1);;
-
     bool pushed_new_clause = false;
     int literal_tmp = 0;
     for (int i = 0; i < ckp_frame.size(); i++)

@@ -187,6 +187,7 @@ namespace IC3 {
         // load clause 
         if (k-1 < ckp.size()) {
           insert_helper_clause(ckp[k-1], k);
+          
         }
 
         // ** Guangyu's helper clause addition **
@@ -228,7 +229,7 @@ namespace IC3 {
           auto &v = *(this->frames_cp);
           v.resize(v.size() + 1);
           for (auto &clause_tmp : f.borderCubes) {
-            auto c_cp = v[v.size()-1];
+            auto &c_cp = v[v.size()-1];
             c_cp.resize(c_cp.size()+1);
             for (auto &lit : clause_tmp) {
               c_cp[c_cp.size()-1].push_back(lit.x);
@@ -394,8 +395,6 @@ namespace IC3 {
     };
     vector<Frame> frames;
 public:
-    vector<vector<int>> *frames_cp;
-
     Minisat::Solver * lifts;
     Minisat::Lit notInvConstraints;
 
