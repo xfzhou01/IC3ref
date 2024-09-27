@@ -172,59 +172,9 @@ namespace IC3 {
         addCube(fidx, cls);
       }
     }
-    // The main loop.
-    bool check(const ClauseBuf & clsbuf, std::vector<std::map<int, int>> *lvcp,
-    const std::vector<ClauseBuf> &ckp) {
-      startTime = time();  // stats
-      bool first_frame = true;
-      this->level_var_to_count = lvcp;
-      
-      while (true) {
-        if (verbose > 1) cout << "Level " << k << endl;
-        
-        extend(clsbuf);                         // push frontier frame
-        if (verbose > 1) cout << "extend" << endl;
-        // load clause 
-        if (k-1 < ckp.size()) {
-          insert_helper_clause(ckp[k-1], k);
-          
-        }
 
-        // ** Guangyu's helper clause addition **
-        if (first_frame) {
-          first_frame = false;
-          insert_helper_clause(clsbuf, 1);
-        }
-        // 
-        
-        time_t timer_check = time();
-        bool strengthen_result = strengthen();
-        time_spend_on_strengthen += (time() - timer_check);
-        if (verbose > 1) cout << "strengthen" << endl;
-        if (!strengthen_result) return false;  // strengthen to remove bad successors
-        
-        this->frames_cp->clear();
-        for (auto &f : this->frames) {
-          auto &v = *(this->frames_cp);
-          v.resize(v.size() + 1);
-          for (auto &clause_tmp : f.borderCubes) {
-            auto c_cp = v[v.size()-1];
-            c_cp.resize(c_cp.size()+1);
-            for (auto &lit : clause_tmp) {
-              c_cp[c_cp.size()-1].push_back(lit.x);
-            }
-          }
-        }
-        // this is a marker
-        this->frames_cp->push_back({{-1}});
-
-
-        timer_check = time();
-        bool propagate_result = propagate();
-        if (verbose > 1) cout << "propagate" << endl;
-        time_spend_on_propagate += (time() - timer_check);
-
-        this->frames_cp->clear();
+    void create_checkpoint() {
+      this->frames_cp->clear();
         for (auto &f : this->frames) {
           auto &v = *(this->frames_cp);
           v.resize(v.size() + 1);
@@ -238,6 +188,46 @@ namespace IC3 {
         }
         // this is a marker
         this->frames_cp->push_back({{-1}});
+    }
+
+    // The main loop.
+    bool check(const ClauseBuf & clsbuf, std::vector<std::map<int, int>> *lvcp,
+    const std::vector<ClauseBuf> &ckp) {
+      startTime = time();  // stats
+      bool first_frame = true;
+      this->level_var_to_count = lvcp;
+      
+      while (true) {
+        if (verbose > 1) cout << "Level " << k << endl;
+        
+        extend(clsbuf);                         // push frontier frame
+        if (verbose > 1) cout << "extend" << endl;
+        // load clause 
+        if (k < ckp.size()) {
+          insert_helper_clause(ckp[k], k);
+          ++k;
+          continue;
+        }
+        if (k == ckp.size()) {
+          insert_helper_clause(clsbuf, k);
+        }
+        // ** Guangyu's helper clause addition **
+        // if (first_frame) {
+        //   first_frame = false;
+        //   insert_helper_clause(clsbuf, 1);
+        // }
+        // 
+        
+        time_t timer_check = time();
+        bool strengthen_result = strengthen();
+        time_spend_on_strengthen += (time() - timer_check);
+        if (verbose > 1) cout << "strengthen" << endl;
+        if (!strengthen_result) return false;  // strengthen to remove bad successors
+        timer_check = time();
+        bool propagate_result = propagate();
+        if (verbose > 1) cout << "propagate" << endl;
+        time_spend_on_propagate += (time() - timer_check);
+        create_checkpoint();
 
         if (propagate_result) {
           
