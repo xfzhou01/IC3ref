@@ -171,12 +171,13 @@ int main(int argc, char ** argv) {
         checkpoint_fname_in = argv[++i];
       }
       std::vector<std::string> frame_str_parts;
-      std::vector<ClauseBuf> frame_buf_list;
       extract_frame_segement(checkpoint_fname_in, frame_str_parts);
       for (auto &frame_str : frame_str_parts) {
         ClauseBuf frame_buf_ckp_load;
         frame_buf_ckp_load.from_ckp_string(frame_str);
-        frame_buf_list.push_back(frame_buf_ckp_load);
+        if (!frame_buf_ckp_load.is_empty()) {
+        checkpoint_clsbuf.push_back(frame_buf_ckp_load);
+        }
       }
     }
     else if (string(argv[i]) == "-s") {

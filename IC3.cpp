@@ -173,6 +173,35 @@ namespace IC3 {
       }
     }
 
+    void print_frames_status() {
+      std::cout << "frames status" << std::endl;
+      for (int i = 0; i < this->frames.size(); i++)
+      {
+        auto fr_i = this->frames[i];
+        std::cout << "[FS]: k" << fr_i.k << std::endl;
+        std::cout << "[FS]: borderCubes" << std::endl;
+        for (auto cube : fr_i.borderCubes) {
+          std::cout << "[FS]: ";
+          for (auto lit : cube) {
+            std::cout << lit.x << " ";
+          }
+          std::cout << std::endl;
+        }
+        // std::cout << "[FS]: consecution" << std::endl;
+        // for (auto ci = fr_i.consecution->clausesBegin(); ci != fr_i.consecution->clausesEnd(); ++ci) {
+        //   auto &cls = *ci;
+        //   std::cout << "[FS]: ";
+        //   for (int j = 0; j < cls.size(); j++)
+        //   {
+        //     std::cout << cls[j].x << " ";
+        //   }
+        //   std::cout << std::endl;
+        // }
+        
+      }
+      
+    }
+
     void create_checkpoint() {
       this->frames_cp->clear();
         for (auto &f : this->frames) {
@@ -190,35 +219,53 @@ namespace IC3 {
         this->frames_cp->push_back({{-1}});
     }
 
+
+    void load_ckp_to_frame(const std::vector<ClauseBuf> &ckp){
+      // f.size == k + 2
+      // k = f.size - 2
+      if (ckp.size() > 2) {
+        k = ckp.size() - 2;
+        extend();
+        for (size_t i = 0; i < ckp.size(); i++)
+        {
+          insert_helper_clause(ckp[i],i);
+        }
+      } else {
+        extend();
+      }
+    }
+
+
+    void sideload_helper(const ClauseBuf & clsbuf) {
+      std::cout << "xxxxxxxx" << k << std::endl;
+      
+      insert_helper_clause(clsbuf, k);
+      create_checkpoint();
+    }
+
     // The main loop.
     bool check(const ClauseBuf & clsbuf, std::vector<std::map<int, int>> *lvcp,
     const std::vector<ClauseBuf> &ckp) {
       startTime = time();  // stats
       bool first_frame = true;
       this->level_var_to_count = lvcp;
-      
+      load_ckp_to_frame(ckp);
+      sideload_helper(clsbuf);
       while (true) {
+      
         if (verbose > 1) cout << "Level " << k << endl;
         
-        extend(clsbuf);                         // push frontier frame
+        extend();                         // push frontier frame
         if (verbose > 1) cout << "extend" << endl;
-        // load clause 
-        if (k < ckp.size()) {
-          insert_helper_clause(ckp[k], k);
-          ++k;
-          continue;
-        }
-        if (k == ckp.size()) {
-          insert_helper_clause(clsbuf, k);
-        }
         // ** Guangyu's helper clause addition **
         // if (first_frame) {
         //   first_frame = false;
-        //   insert_helper_clause(clsbuf, 1);
+        //   insert_helper_clause(clsbuf, k);
         // }
-        // 
+        
         
         time_t timer_check = time();
+        //if (verbose > 1) cout << "strengthen begins" << endl;
         bool strengthen_result = strengthen();
         time_spend_on_strengthen += (time() - timer_check);
         if (verbose > 1) cout << "strengthen" << endl;
@@ -227,6 +274,8 @@ namespace IC3 {
         bool propagate_result = propagate();
         if (verbose > 1) cout << "propagate" << endl;
         time_spend_on_propagate += (time() - timer_check);
+        //
+        //print_frames_status();
         create_checkpoint();
 
         if (propagate_result) {
@@ -389,7 +438,7 @@ public:
     Minisat::Lit notInvConstraints;
 
     // Push a new Frame.
-    void extend(const ClauseBuf &clsbuf) {
+    void extend() {
       while (frames.size() < k+2) {
         frames.resize(frames.size()+1);
         Frame & fr = frames.back();
