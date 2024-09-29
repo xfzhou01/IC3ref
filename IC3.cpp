@@ -236,10 +236,8 @@ namespace IC3 {
     }
 
 
-    void sideload_helper(const ClauseBuf & clsbuf) {
-      std::cout << "xxxxxxxx" << k << std::endl;
-      
-      insert_helper_clause(clsbuf, k);
+    void sideload_helper(const ClauseBuf & clsbuf) {      
+      insert_helper_clause(clsbuf, 1);
       create_checkpoint();
     }
 
