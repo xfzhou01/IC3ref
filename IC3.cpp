@@ -217,6 +217,20 @@ namespace IC3 {
         }
         // this is a marker
         this->frames_cp->push_back({{-1}});
+
+        // -------- TEST
+        // std::cout << "quq" << std::endl;
+        // int cnt = 0;
+        // for (auto &f: *this->frames_cp) {
+        //   std::cout << "F" << cnt << std::endl;
+        //   cnt += 1;
+        //   for (auto &cls : f) {
+        //     for (auto v : cls) {
+        //       std::cout << v << " ";
+        //     }
+        //     std::cout << std::endl;
+        //   }
+        // }
     }
 
 
@@ -233,6 +247,10 @@ namespace IC3 {
       } else {
         extend();
       }
+    }
+
+    void check_inductiveness(const ClauseBuf & clsbuf) {
+      
     }
 
 
@@ -265,6 +283,7 @@ namespace IC3 {
         time_t timer_check = time();
         //if (verbose > 1) cout << "strengthen begins" << endl;
         bool strengthen_result = strengthen();
+
         time_spend_on_strengthen += (time() - timer_check);
         if (verbose > 1) cout << "strengthen" << endl;
         if (!strengthen_result) return false;  // strengthen to remove bad successors
@@ -905,6 +924,29 @@ public:
       }
     }
 
+    void print_cube(const LitVec &a) {
+      std::cout << "process cube: ";
+      for (auto &l : a) {
+        std::cout << l.x << " ";
+      } 
+      std::cout << std::endl;
+    }
+
+    bool judge_cube(const LitVec &a, std::vector<int> &b) {
+      if (a.size() != b.size()) {
+        return false;
+      } else {
+        for (int i = 0; i < a.size(); i++)
+        {
+          bool r = a[i].x == b[i];
+          if (!r) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
     // Propagates clauses forward using induction.  If any frame has
     // all of its clauses propagated forward, then two frames' clause
     // sets agree; hence those clause sets are inductive
@@ -941,6 +983,7 @@ public:
         for (CubeSet::iterator j = fr.borderCubes.begin(); 
              j != fr.borderCubes.end();) {
           LitVec core;
+          // test
           if (consecution(i, *j, 0, &core)) {
             ++cprop;
             // only add to frame i+1 unless the core is reduced

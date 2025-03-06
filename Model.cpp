@@ -313,7 +313,7 @@ Model * modelFromAiger(aiger * aig, unsigned int propertyIndex) {
     aig->num_bad > 0 
     ? lit(vars, aig->bad[propertyIndex].lit) 
     : lit(vars, aig->outputs[propertyIndex].lit);
-
+  std::cout << "error index: " << err.x << std::endl;
   size_t offset = 0;
   return new Model(vars, 
                    offset += 1, offset += aig->num_inputs, 
