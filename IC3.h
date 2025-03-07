@@ -39,8 +39,9 @@ namespace IC3 {
              bool dump_name= false,
              const char * fname_out = NULL,
              std::vector<std::map<int, int>> *lvcp = nullptr,
-             std::vector<std::vector<std::vector<int>>> *frames_cp_ptr = nullptr
-             );
+             std::vector<std::vector<std::vector<int>>> *frames_cp_ptr = nullptr,
+             bool *is_level_finish = nullptr // the flag to indicate the level finish when reach an time out
+            );
 
 }
 

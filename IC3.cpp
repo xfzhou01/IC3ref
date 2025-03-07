@@ -260,15 +260,19 @@ namespace IC3 {
     }
 
     // The main loop.
-    bool check(const ClauseBuf & clsbuf, std::vector<std::map<int, int>> *lvcp,
-    const std::vector<ClauseBuf> &ckp) {
+    bool check(const ClauseBuf & clsbuf,
+      std::vector<std::map<int, int>> *lvcp,
+      const std::vector<ClauseBuf> &ckp,
+      bool *level_finish) {
       startTime = time();  // stats
       bool first_frame = true;
       this->level_var_to_count = lvcp;
       load_ckp_to_frame(ckp);
       sideload_helper(clsbuf);
       while (true) {
-      
+        if (level_finish) {
+          return 0;
+        }
         if (verbose > 1) cout << "Level " << k << endl;
         
         extend();                         // push frontier frame
@@ -294,7 +298,6 @@ namespace IC3 {
         //
         //print_frames_status();
         create_checkpoint();
-
         if (propagate_result) {
           
           return true;
@@ -1091,10 +1094,18 @@ public:
   }
 
   // External function to make the magic happen.
-  bool check(Model & model, const ClauseBuf & clsbuf,
-  std::vector<ClauseBuf> &ckp, int verbose, bool basic, bool random, 
-  bool dump, bool dump_name, const char * dump_file_target, 
-  std::vector<std::map<int, int>> *lvcp, std::vector<std::vector<std::vector<int>>> *frames_cp_ptr) {
+  bool check(Model & model, 
+      const ClauseBuf & clsbuf,
+      std::vector<ClauseBuf> &ckp, 
+      int verbose, 
+      bool basic, 
+      bool random, 
+      bool dump, 
+      bool dump_name, 
+      const char * dump_file_target, 
+      std::vector<std::map<int, int>> *lvcp, 
+      std::vector<std::vector<std::vector<int>>> *frames_cp_ptr,
+      bool *is_level_finish) {
     if (!baseCases(model)) {
       if (dump) {
         std::ofstream fout(dump_file_target);
@@ -1110,7 +1121,10 @@ public:
       ic3.maxCTGs = 0;
     }
     if (random) ic3.random = true;
-    bool rv = ic3.check(clsbuf, lvcp, ckp);
+    bool rv = ic3.check(clsbuf, 
+      lvcp, 
+      ckp,
+      is_level_finish);
     if (!rv && verbose > 1) {
       ic3.printWitness();
     }

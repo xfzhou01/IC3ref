@@ -52,6 +52,7 @@ void print_help_info() {
   std::cout << "    -i: load aig from file " << std::endl; 
   std::cout << "    -b: use basic generalization" << std::endl;
   std::cout << "    -t <int value>: the IC3 execution time limit" << std::endl;
+  std::cout << "    -stable: toggle use stable execution (default: No)" << std::endl;
 }
 
 bool is_string_contain_dash(const char *s) {
@@ -142,6 +143,15 @@ int main(int argc, char ** argv) {
 
   bool has_time_limit = false;
   bool has_checkpoint = false;
+  
+  // the flag indicating whether to perform a stable execution of ic3 algorithm 
+  // with time out, if the flag is set, when a time out is reached, the algori-
+  // thm will not end until the current level finish the execution. Otherwise,
+  // the algorihtm will shut down once the execution time limit is reached. By
+  // default, the option is `false`.
+  bool stable_execution = false;
+  
+
 
   int max_execution_time_seconds = -1;
 
@@ -251,6 +261,9 @@ int main(int argc, char ** argv) {
         has_time_limit = true;
         std::cout << "[INFO] set run time limit " << max_execution_time_seconds << " seconds" << endl;
       }
+    } 
+    else if (string(argv[i]) == "-stable") {
+      stable_execution = true;
     }
     else if (string(argv[i]) == "-b")
       // option: use basic generalization
@@ -288,29 +301,61 @@ int main(int argc, char ** argv) {
   bool rv;
   std::vector<std::map<int, int>> lvcp;
   std::vector<std::vector<std::vector<int>>> frames_cp;
+  bool level_finish = false; // the flag 
+  // it is used to notice the ic3 check should reach an 
+  // end of current trial  
   if (!has_time_limit) {
-    rv = IC3::check(*model, clsbuf,checkpoint_clsbuf,
-    verbose, basic, random, dump, dump_name, fname_out.c_str(), &lvcp, &frames_cp);
+    rv = IC3::check(*model, 
+      clsbuf,
+      checkpoint_clsbuf,
+      verbose, 
+      basic, 
+      random, 
+      dump, 
+      dump_name, 
+      fname_out.c_str(), 
+      &lvcp, 
+      &frames_cp, 
+      &level_finish
+    );
   } else {
-    auto future = std::async(std::launch::async, IC3::check, 
-    std::ref(*model), clsbuf,std::ref(checkpoint_clsbuf),
-    verbose, basic, random, dump, dump_name, fname_out.c_str(), 
-    &lvcp, &frames_cp);
-    if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready) {
+    auto future = std::async(std::launch::async, 
+      IC3::check, 
+      std::ref(*model), 
+      clsbuf,
+      std::ref(checkpoint_clsbuf),
+      verbose, 
+      basic, 
+      random, 
+      dump, 
+      dump_name, 
+      fname_out.c_str(), 
+      &lvcp, 
+      &frames_cp, 
+      &level_finish
+    );
+    // and with the level finish flag
+    if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready && true) {
         rv = future.get(); 
     } else {
-        std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
-        std::cout << "the CTI encountered at stuck point" << std::endl;
-        auto &m_tmp = lvcp[lvcp.size() - 2];
-        std::cout << ". CTI stat begin:" << std::endl;
-        for (auto &p_tmp : m_tmp) {
-          std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
-        }
-        std::cout << ". CTI stat end" << std::endl;
-        write_frame_segement(frames_cp, checkpoint_fname_out);
-        rv = false;
-        std::exit(rv);
-        return rv;
+      // set the flag to notice ic3 prover to reach an end
+      if (stable_execution) {
+        level_finish = true;
+        rv = future.get(); 
+      }
+      // wait 
+      std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
+      std::cout << "the CTI encountered at stuck point" << std::endl;
+      auto &m_tmp = lvcp[lvcp.size() - 2];
+      std::cout << ". CTI stat begin:" << std::endl;
+      for (auto &p_tmp : m_tmp) {
+        std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
+      }
+      std::cout << ". CTI stat end" << std::endl;
+      write_frame_segement(frames_cp, checkpoint_fname_out);
+      rv = false;
+      std::exit(rv);
+      return rv;
     }
   }
   cout << "[INFO] finished IC3 check" << endl;
