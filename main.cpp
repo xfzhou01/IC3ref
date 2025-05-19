@@ -93,11 +93,15 @@ void extract_frame_segement(const std::string& filename, std::vector<std::string
     parts.push_back(contents.substr(pos));
 }
 
-void write_frame_segement(const std::vector<std::vector<std::vector<int>>> &frames_cp,
-std::string &out_file_path) {
+void write_frame_segement(
+  const std::vector<std::vector<std::vector<int>>> &frames_cp,
+  std::string &out_file_path
+  ) {
+
   // sanity check
   bool valid = frames_cp.back().back().back() == -1;
   assert(valid);
+
   // write to file
   std::string res_str = "";
   for (auto &ff : frames_cp) {
@@ -182,6 +186,7 @@ int main(int argc, char ** argv) {
       }
       std::vector<std::string> frame_str_parts;
       extract_frame_segement(checkpoint_fname_in, frame_str_parts);
+
       for (auto &frame_str : frame_str_parts) {
         ClauseBuf frame_buf_ckp_load;
         frame_buf_ckp_load.from_ckp_string(frame_str);
@@ -298,7 +303,7 @@ int main(int argc, char ** argv) {
   // model check it
 
 
-  bool rv;
+  int rv;
   std::vector<std::map<int, int>> lvcp;
   std::vector<std::vector<std::vector<int>>> frames_cp;
   bool level_finish = false; // the flag 
@@ -335,37 +340,46 @@ int main(int argc, char ** argv) {
       &level_finish
     );
     // and with the level finish flag
-    if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready && true) {
+    if (future.wait_for(std::chrono::seconds(max_execution_time_seconds)) == std::future_status::ready) {
         rv = future.get(); 
     } else {
       // set the flag to notice ic3 prover to reach an end
       if (stable_execution) {
         level_finish = true;
         rv = future.get(); 
+      } else {
+        rv = 2;
       }
-      // wait 
-      std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
-      std::cout << "the CTI encountered at stuck point" << std::endl;
-      auto &m_tmp = lvcp[lvcp.size() - 2];
-      std::cout << ". CTI stat begin:" << std::endl;
-      for (auto &p_tmp : m_tmp) {
-        std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
+
+      if (rv==2) {
+        // wait 
+        std::cout << "[INFO] IC3 got timeout at " << max_execution_time_seconds <<" seconds" << std::endl;
+        std::cout << "the CTI encountered at stuck point" << std::endl;
+        auto &m_tmp = lvcp[lvcp.size() - 2];
+        std::cout << ". CTI stat begin:" << std::endl;
+        for (auto &p_tmp : m_tmp) {
+          std::cout << ". -- VAR " << p_tmp.first << " -- CNT " << p_tmp.second << std::endl;
+        }
+        std::cout << ". CTI stat end" << std::endl;
+        write_frame_segement(frames_cp, checkpoint_fname_out);
+
+        std::exit(0);
       }
-      std::cout << ". CTI stat end" << std::endl;
-      write_frame_segement(frames_cp, checkpoint_fname_out);
-      rv = false;
-      std::exit(rv);
-      return rv;
     }
   }
   cout << "[INFO] finished IC3 check" << endl;
   // print 0/1 according to AIGER standard
-  if (rv) {
+  if (rv == 1) {
     std::cout << "[INFO] property proved" << std::endl;
   } else {
     std::cout << "[INFO] find cex or timeout" << std::endl;
   }
-  cout << !rv << endl;
+  if (rv == 1) {
+    cout << 0 << endl;
+  } else {
+    cout << 1 << endl;
+  }
+  
 
   delete model;
 

@@ -203,34 +203,54 @@ namespace IC3 {
     }
 
     void create_checkpoint() {
+
+      // clear the check point
       this->frames_cp->clear();
-        for (auto &f : this->frames) {
-          auto &v = *(this->frames_cp);
-          v.resize(v.size() + 1);
-          for (auto &clause_tmp : f.borderCubes) {
-            auto &c_cp = v[v.size()-1];
-            c_cp.resize(c_cp.size()+1);
-            for (auto &lit : clause_tmp) {
-              c_cp[c_cp.size()-1].push_back(lit.x);
-            }
+
+      // for all frame, do the copy
+      for (auto &f : this->frames) {
+
+        // the reference to frames vector
+        auto &v = *(this->frames_cp);
+
+        // append the frames vector
+        v.resize(v.size() + 1);
+
+        // insert cubes to the newly append frame vector
+        // std::cout << "frame border cubes.size = " << f.borderCubes.size() << std::endl;
+        for (auto &clause_tmp : f.borderCubes) {
+
+          // the refernce to the newly append frame
+          auto &c_cp = v[v.size()-1];
+
+          // append the frame (clause vector)
+          c_cp.resize(c_cp.size()+1);
+
+          // add lits to the clause vector
+          for (auto &lit : clause_tmp) {
+            c_cp[c_cp.size()-1].push_back(lit.x);
           }
         }
-        // this is a marker
-        this->frames_cp->push_back({{-1}});
+      }
+      //std::cout << "size of this->frames_cp = " << this->frames_cp->size() 
+      //  << std::endl;
 
-        // -------- TEST
-        // std::cout << "quq" << std::endl;
-        // int cnt = 0;
-        // for (auto &f: *this->frames_cp) {
-        //   std::cout << "F" << cnt << std::endl;
-        //   cnt += 1;
-        //   for (auto &cls : f) {
-        //     for (auto v : cls) {
-        //       std::cout << v << " ";
-        //     }
-        //     std::cout << std::endl;
-        //   }
-        // }
+      // this is a marker
+      this->frames_cp->push_back({{-1}});
+
+      // -------- TEST
+      // std::cout << "quq" << std::endl;
+      // int cnt = 0;
+      // for (auto &f: *this->frames_cp) {
+      //   std::cout << "F" << cnt << std::endl;
+      //   cnt += 1;
+      //   for (auto &cls : f) {
+      //     for (auto v : cls) {
+      //       std::cout << v << " ";
+      //     }
+      //     std::cout << std::endl;
+      //   }
+      // }
     }
 
 
@@ -260,18 +280,19 @@ namespace IC3 {
     }
 
     // The main loop.
-    bool check(const ClauseBuf & clsbuf,
+    int check(const ClauseBuf & clsbuf,
       std::vector<std::map<int, int>> *lvcp,
       const std::vector<ClauseBuf> &ckp,
-      bool *level_finish) {
+      bool *level_finish
+    ) {
       startTime = time();  // stats
       bool first_frame = true;
       this->level_var_to_count = lvcp;
       load_ckp_to_frame(ckp);
       sideload_helper(clsbuf);
       while (true) {
-        if (level_finish) {
-          return 0;
+        if (*level_finish) {
+          return 2; 
         }
         if (verbose > 1) cout << "Level " << k << endl;
         
@@ -290,7 +311,7 @@ namespace IC3 {
 
         time_spend_on_strengthen += (time() - timer_check);
         if (verbose > 1) cout << "strengthen" << endl;
-        if (!strengthen_result) return false;  // strengthen to remove bad successors
+        if (!strengthen_result) {return 0;}  // strengthen to remove bad successors
         timer_check = time();
         bool propagate_result = propagate();
         if (verbose > 1) cout << "propagate" << endl;
@@ -298,11 +319,10 @@ namespace IC3 {
         //
         //print_frames_status();
         create_checkpoint();
-        if (propagate_result) {
-          
-          return true;
-        }     // propagate clauses; check for proof
         printStats();
+        if (propagate_result) {
+          return 1;
+        }     // propagate clauses; check for proof
         ++k;                              // increment frontier
       }
     }
@@ -1094,7 +1114,8 @@ public:
   }
 
   // External function to make the magic happen.
-  bool check(Model & model, 
+  // if 
+  int check(Model & model, 
       const ClauseBuf & clsbuf,
       std::vector<ClauseBuf> &ckp, 
       int verbose, 
@@ -1121,19 +1142,19 @@ public:
       ic3.maxCTGs = 0;
     }
     if (random) ic3.random = true;
-    bool rv = ic3.check(clsbuf, 
+    int rv = ic3.check(clsbuf, 
       lvcp, 
       ckp,
       is_level_finish);
-    if (!rv && verbose > 1) {
+    if (rv == 0 && verbose > 1) {
       ic3.printWitness();
     }
-    if (!rv && dump) {
+    if (rv == 0 && dump) {
         std::ofstream fout(dump_file_target);
         fout << "sat" << endl;
     }
-    if (verbose) ic3.printStats();
-    if (rv && dump) ic3.printInvariant(dump_name, dump_file_target);
+    if (verbose && !is_level_finish) ic3.printStats();
+    if (rv == 1 && dump) ic3.printInvariant(dump_name, dump_file_target);
     return rv;
   }
 

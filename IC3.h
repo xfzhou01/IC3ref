@@ -29,7 +29,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace IC3 {
 
-  bool check(Model & model,
+  int check(Model & model,
              const ClauseBuf & clsbuf,
              std::vector<ClauseBuf> &ckp,
              int verbose = 0,       // 0: silent, 1: stats, 2: informative
