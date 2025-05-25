@@ -29,6 +29,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "IC3.h"
 #include "Solver.h"
 #include "Vec.h"
+#include "MAB.h"
+#include "ARM.h"
+#include <Eigen/Dense>
 
 // A reference implementation of IC3, i.e., one that is meant to be
 // read and used as a starting point for tuning, extending, and
@@ -126,17 +129,28 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //    reduction are applied to a state, followed by mic before
 //    pushing.  The resulting cube is sufficiently small.
 
+
+// MAB tunable parameters
+// maxDepth (=1): maximum depth of recursion in ctgDown
+// 
+// maxCTGs (=3): maximum number of CTGs to attempt before joining
+// micAttempts (=3): maximum number of attempts to drop a literal in mic
+
 namespace IC3 {
 
   class IC3 {
   public:
+    bool use_mab ;
+    ARM arm_0;
     IC3(Model & _model) :
       verbose(0), random(false), model(_model), k(1), nextState(0),
       litOrder(), slimLitOrder(),
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
-      nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0)
+      nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
+      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 4, 1.0, 0.1)
     {
+      
       slimLitOrder.heuristicLitOrder = &litOrder;
 
       // construct lifting solver
@@ -653,10 +667,97 @@ namespace IC3 {
       if (toAll && !silent) updateLitOrder(cube, level);
     }
 
+    float normalize_feature(float val, float min_val, float max_val) {
+        if (max_val <= min_val) return 0.5f; // Avoid division by zero
+        float norm = (val - min_val) / (max_val - min_val);
+        if (norm < 0.0f) norm = 0.0f;
+        if (norm > 1.0f) norm = 1.0f;
+        return norm;
+    }
+
+    void derive_context_vector(std::vector<float> & context_vector, 
+      const Obligation &obl) {
+      // derive context vector from litOrder
+      // context: 
+      //  - po.frame
+      //  - po.lemma.len
+      //  - po.act (to be impl)
+      //  - po.depth
+
+      const float MAX_EXPECTED_FRAME = 100.0;
+      const float MAX_EXPECTED_LEMMA_LEN = 50.0; 
+      const float MAX_EXPECTED_DEPTH = 50.0;
+
+      int po_frame = obl.level;
+      int po_lemma_len = state(obl.state).latches.size();
+      int po_depth = obl.depth;
+
+      float po_frame_feat = normalize_feature(po_frame, 
+        0.0f, MAX_EXPECTED_FRAME);
+      float po_lemma_len_feat = normalize_feature(po_lemma_len, 1.0f, 
+        MAX_EXPECTED_LEMMA_LEN);
+      float po_depth_feat = normalize_feature(po_depth, 
+        0.0f, MAX_EXPECTED_DEPTH);
+      float bias = 1.0f; // bias term
+      context_vector.clear();
+      context_vector.push_back(po_frame_feat);
+      context_vector.push_back(po_lemma_len_feat);
+      context_vector.push_back(po_depth_feat);
+      context_vector.push_back(bias);
+    }
+
+    void derive_context_vector(std::vector<float> & context_vector, 
+      int level, int lemma_len, int depth) {
+      // derive context vector from litOrder
+      // context: 
+      //  - po.frame
+      //  - po.lemma.len
+      //  - po.act (to be impl)
+      //  - po.depth
+
+      const float MAX_EXPECTED_FRAME = 100.0;
+      const float MAX_EXPECTED_LEMMA_LEN = 50.0; 
+      const float MAX_EXPECTED_DEPTH = 50.0;
+
+      int po_frame = level;
+      int po_lemma_len = lemma_len;
+      int po_depth = depth;
+
+      float po_frame_feat = normalize_feature(po_frame, 
+        0.0f, MAX_EXPECTED_FRAME);
+      float po_lemma_len_feat = normalize_feature(po_lemma_len, 1.0f, 
+        MAX_EXPECTED_LEMMA_LEN);
+      float po_depth_feat = normalize_feature(po_depth, 
+        0.0f, MAX_EXPECTED_DEPTH);
+      float bias = 1.0f; // bias term
+      context_vector.clear();
+      context_vector.push_back(po_frame_feat);
+      context_vector.push_back(po_lemma_len_feat);
+      context_vector.push_back(po_depth_feat);
+      context_vector.push_back(bias);
+    }
+    MAB mab_0;
     // ~cube was found to be inductive relative to level; now see if
     // we can do better.
-    size_t generalize(size_t level, LitVec cube) {
-      // generalize
+    size_t generalize(size_t level, LitVec cube, size_t depth) {
+
+      if (this->use_mab) {
+        // add MAB select
+        std::vector<float> context_vector;
+        derive_context_vector(context_vector, 
+          level, cube.size(), depth);
+        std::vector<double> context_vector_d(context_vector.begin(), 
+          context_vector.end());
+        Eigen::Map<Eigen::VectorXd> context(context_vector_d.data(), 
+          context_vector_d.size());
+        int arm_index = mab_0.select_arm_ucb(context);
+        
+      }
+      
+
+      // config parameter accroding to the arm number
+
+
       mic(level, cube);
       // push
       do { ++level; } while (level <= k && consecution(level, cube));
@@ -679,7 +780,7 @@ namespace IC3 {
           // Yes, so generalize and possibly produce a new obligation
           // at a higher level.
           obls.erase(obli);
-          size_t n = generalize(obl.level, core);
+          size_t n = generalize(obl.level, core, obl.depth);
           if (n <= k)
             obls.insert(Obligation(obl.state, n, obl.depth));
         }
@@ -814,7 +915,7 @@ namespace IC3 {
       if (numUpdates) cout << ". Avg lits/cls: " << numLits / numUpdates << endl;
     }
 
-    friend bool check(Model &, int, bool, bool);
+    friend bool check(Model &, int, bool, bool, bool);
 
   };
 
@@ -841,11 +942,22 @@ namespace IC3 {
   }
 
   // External function to make the magic happen.
-  bool check(Model & model, int verbose, bool basic, bool random) {
+  bool check(Model & model, int verbose, bool basic, bool random, 
+    bool use_mab) {
+
+    // Sanity check: use_mab and basic cannot be true at the same time
+    if (use_mab && basic) {
+      std::cerr 
+        << "Error: use_mab and basic cannot be true at the same time." 
+        << std::endl;
+      return false;
+    }
+    
     if (!baseCases(model))
       return false;
     IC3 ic3(model);
     ic3.verbose = verbose;
+    ic3.use_mab = use_mab;
     if (basic) {
       ic3.maxDepth = 0;
       ic3.maxJoins = 0;

@@ -35,6 +35,7 @@ int main(int argc, char ** argv) {
   unsigned int propertyIndex = 0;
   bool basic = false, random = false;
   int verbose = 0;
+  bool use_mab = false; // mab
   for (int i = 1; i < argc; ++i) {
     if (string(argv[i]) == "-v")
       // option: verbosity
@@ -51,6 +52,9 @@ int main(int argc, char ** argv) {
     else if (string(argv[i]) == "-b")
       // option: use basic generalization
       basic = true;
+    else if (string(argv[i]) == "-mab")
+      // option: enable MAB
+      use_mab = true;
     else
       // optional argument: set property index
       propertyIndex = (unsigned) atoi(argv[i]);
@@ -69,7 +73,7 @@ int main(int argc, char ** argv) {
   if (!model) return 0;
 
   // model check it
-  bool rv = IC3::check(*model, verbose, basic, random);
+  bool rv = IC3::check(*model, verbose, basic, random, use_mab);
   // print 0/1 according to AIGER standard
   cout << !rv << endl;
 
