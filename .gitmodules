@@ -1,3 +1,4 @@
 [submodule "minisat"]
-	path = minisat
-	url = https://github.com/niklasso/minisat
+    path = minisat
+    url = https://github.com/xfzhou01/minisat
+    branch = ic3ref
