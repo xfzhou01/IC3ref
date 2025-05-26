@@ -148,7 +148,8 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 4, 1.0, 0.1)
+      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 4, 1.0, 0.1),
+      arm_pulls(arm_0.get_n_arms(), 0)
     {
       
       slimLitOrder.heuristicLitOrder = &litOrder;
@@ -736,31 +737,68 @@ namespace IC3 {
       context_vector.push_back(po_depth_feat);
       context_vector.push_back(bias);
     }
+
+    // the MAB instance
     MAB mab_0;
+
+    // the vector to record the number of pulls of each arm
+    std::vector<int> arm_pulls;
+    int arm_index;
     // ~cube was found to be inductive relative to level; now see if
     // we can do better.
     size_t generalize(size_t level, LitVec cube, size_t depth) {
-
+      std::vector<float> context_vector;
       if (this->use_mab) {
         // add MAB select
-        std::vector<float> context_vector;
         derive_context_vector(context_vector, 
           level, cube.size(), depth);
         std::vector<double> context_vector_d(context_vector.begin(), 
           context_vector.end());
         Eigen::Map<Eigen::VectorXd> context(context_vector_d.data(), 
           context_vector_d.size());
-        int arm_index = mab_0.select_arm_ucb(context);
         
+        // get arm index from MAB
+        arm_index = mab_0.select_arm_ucb(context);
+        
+        // setting the parameter according to the arm index
+        this->maxCTGs = arm_0.get_arm_maxCTGs(arm_index);
+        this->maxDepth = arm_0.get_arm_maxDepth(arm_index);
+        this->micAttempts = arm_0.get_arm_micAttempts(arm_index);
+
+        arm_pulls[arm_index] += 1;  // record pull
       }
       
+      // record the original cube size
+      size_t original_cube_size = cube.size();
 
-      // config parameter accroding to the arm number
-
-
+      // DO MIC
       mic(level, cube);
+
+      // record the cube size after mic
+      size_t mic_cube_size = cube.size();
+
+      // record the frame before pushing
+      int level_before_push = level;
+
       // push
       do { ++level; } while (level <= k && consecution(level, cube));
+
+      // record the frame after pushing
+      int level_after_push = level;
+
+      if (this->use_mab) {
+        // do some sanity checks
+        assert(arm_index >= 0 && arm_index < mab_0.num_arms());
+        std::vector<double> context_vector_d(context_vector.begin(), 
+          context_vector.end());
+        Eigen::Map<Eigen::VectorXd> context(context_vector_d.data(), 
+          context_vector_d.size());
+        // calculate the reward
+        float reward = mab_0.calculate_reward(original_cube_size, mic_cube_size, 
+          level_before_push, level_after_push);
+        // update MAB with the reward
+        mab_0.update(arm_index, reward, context);
+      }
       addCube(level, cube);
       return level;
     }
@@ -914,10 +952,21 @@ namespace IC3 {
       cout << ". # Int. mics:  " << nAbortMic << endl;
       if (numUpdates) cout << ". Avg lits/cls: " << numLits / numUpdates << endl;
     }
+    void print_mab_stats() {
+      if (!use_mab) return;
+      cout << "--------------------------" << endl;
+      cout << ". MAB stats: " << endl;
+      cout << ". # arms: " << mab_0.num_arms() << endl;
+      cout << ". # pulls: " << std::accumulate(arm_pulls.begin(), 
+        arm_pulls.end(), 0) << endl;
+      for (size_t i = 0; i < arm_pulls.size(); ++i)
+        cout << ". Arm " << i << ": " << arm_pulls[i] << " pulls" << endl;
+    }
 
     friend bool check(Model &, int, bool, bool, bool);
 
   };
+
 
   // IC3 does not check for 0-step and 1-step reachability, so do it
   // separately.
@@ -967,6 +1016,7 @@ namespace IC3 {
     bool rv = ic3.check();
     if (!rv && verbose > 1) ic3.printWitness();
     if (verbose) ic3.printStats();
+    if (verbose) ic3.print_mab_stats();
     return rv;
   }
 
