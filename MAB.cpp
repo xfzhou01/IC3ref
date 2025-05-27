@@ -18,10 +18,10 @@ MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon)
     std::random_device rd;
     rng.seed(rd());
     // initialize A_inv, theta, A, and b for each arm
-    for (int i = 0; i < n_arms; ++i) {
-        A_inv.push_back(Eigen::MatrixXd::Identity(ctx_dim, ctx_dim));
-        theta.push_back(Eigen::VectorXd::Zero(ctx_dim));
-    }
+    // for (int i = 0; i < n_arms; ++i) {
+    //     A_inv.push_back(Eigen::MatrixXd::Identity(ctx_dim, ctx_dim));
+    //     theta.push_back(Eigen::VectorXd::Zero(ctx_dim));
+    // }
 }
 
 MAB::~MAB() {}
@@ -42,6 +42,7 @@ float MAB::calculate_reward(int original_cube_size,
     int pushing_power = pushed_frame - po_frame;
     float combined_reward = this->pushing_power_weight * (float) pushing_power + 
         size_reduction_reward;
+    return combined_reward;
 }
 
 int MAB::select_arm_ucb(const Eigen::VectorXd& context)
