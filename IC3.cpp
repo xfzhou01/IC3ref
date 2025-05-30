@@ -32,6 +32,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "MAB.h"
 #include "ARM.h"
 #include <Eigen/Dense>
+#include <map>
 
 // A reference implementation of IC3, i.e., one that is meant to be
 // read and used as a starting point for tuning, extending, and
@@ -148,7 +149,7 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 4, 1.0, 0.1),
+      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 5, 1.0, 0.1),
       arm_pulls(arm_0.get_n_arms(), 0)
     {
       
@@ -290,6 +291,12 @@ namespace IC3 {
       size_t state;  // Generalize this state...
       size_t level;  // ... relative to this level.
       size_t depth;  // Length of CTI suffix to error.
+      // Overload < operator for Obligation: compare by (state, level, depth)
+      bool operator<(const Obligation& other) const {
+        if (state != other.state) return state < other.state;
+        if (level != other.level) return level < other.level;
+        return depth < other.depth;
+      }
     };
     class ObligationComp {
     public:
@@ -708,7 +715,8 @@ namespace IC3 {
     }
 
     void derive_context_vector(std::vector<float> & context_vector, 
-      int level, int lemma_len, int depth) {
+      int level, int lemma_len, int depth,
+      Obligation &obl) {
       // derive context vector from litOrder
       // context: 
       //  - po.frame
@@ -716,13 +724,15 @@ namespace IC3 {
       //  - po.act (to be impl)
       //  - po.depth
 
-      const float MAX_EXPECTED_FRAME = 100.0;
-      const float MAX_EXPECTED_LEMMA_LEN = 50.0; 
-      const float MAX_EXPECTED_DEPTH = 50.0;
+      const float MAX_EXPECTED_FRAME = 100.0f;
+      const float MAX_EXPECTED_LEMMA_LEN = 50.0f; 
+      const float MAX_EXPECTED_DEPTH = 50.0f;
+      const float MAX_EXPECTED_ACT = 100.0f; 
 
       int po_frame = level;
       int po_lemma_len = lemma_len;
       int po_depth = depth;
+      float obl_act = obl_fetch_act(obl);
 
       float po_frame_feat = normalize_feature(po_frame, 
         0.0f, MAX_EXPECTED_FRAME);
@@ -730,11 +740,15 @@ namespace IC3 {
         MAX_EXPECTED_LEMMA_LEN);
       float po_depth_feat = normalize_feature(po_depth, 
         0.0f, MAX_EXPECTED_DEPTH);
+      float obl_act_feat = normalize_feature(obl_act, 
+        0.0f, MAX_EXPECTED_ACT);
       float bias = 1.0f; // bias term
+      
       context_vector.clear();
       context_vector.push_back(po_frame_feat);
       context_vector.push_back(po_lemma_len_feat);
       context_vector.push_back(po_depth_feat);
+      context_vector.push_back(obl_act_feat);
       context_vector.push_back(bias);
     }
 
@@ -743,15 +757,19 @@ namespace IC3 {
 
     // the vector to record the number of pulls of each arm
     std::vector<int> arm_pulls;
-    int arm_index;
-    // ~cube was found to be inductive relative to level; now see if
-    // we can do better.
-    size_t generalize(size_t level, LitVec cube, size_t depth) {
-      std::vector<float> context_vector;
+    int arm_index = -1;
+
+
+    void arm_pulls_func(size_t level, LitVec cube, 
+      size_t depth, Obligation &obl, std::vector<float> &context_vector) {
+      
       if (this->use_mab) {
         // add MAB select
+        // clear context vector
+        context_vector.clear();
+        // derive context vector
         derive_context_vector(context_vector, 
-          level, cube.size(), depth);
+          level, cube.size(), depth, obl);
         std::vector<double> context_vector_d(context_vector.begin(), 
           context_vector.end());
         Eigen::Map<Eigen::VectorXd> context(context_vector_d.data(), 
@@ -767,7 +785,30 @@ namespace IC3 {
 
         arm_pulls[arm_index] += 1;  // record pull
       }
-      
+    }
+
+    void arm_updates_func(std::vector<float> &context_vector,
+      int original_cube_size, int mic_cube_size,
+      int level_before_push, int level_after_push) {
+      if (this->use_mab) {
+        // do some sanity checks
+        assert(arm_index >= 0 && arm_index < mab_0.num_arms());
+        std::vector<double> context_vector_d(context_vector.begin(), 
+          context_vector.end());
+        Eigen::Map<Eigen::VectorXd> context(context_vector_d.data(), 
+          context_vector_d.size());
+        // calculate the reward
+        float reward = mab_0.calculate_reward(original_cube_size, mic_cube_size, 
+          level_before_push, level_after_push);
+        // update MAB with the reward
+        mab_0.update(arm_index, reward, context);
+      }
+    }
+
+    // ~cube was found to be inductive relative to level; now see if
+    // we can do better.
+    size_t generalize(size_t level, LitVec cube, size_t depth, 
+      std::vector<float> &context_vector) {
       // record the original cube size
       size_t original_cube_size = cube.size();
 
@@ -786,24 +827,43 @@ namespace IC3 {
       // record the frame after pushing
       int level_after_push = level;
 
-      if (this->use_mab) {
-        // do some sanity checks
-        assert(arm_index >= 0 && arm_index < mab_0.num_arms());
-        std::vector<double> context_vector_d(context_vector.begin(), 
-          context_vector.end());
-        Eigen::Map<Eigen::VectorXd> context(context_vector_d.data(), 
-          context_vector_d.size());
-        // calculate the reward
-        float reward = mab_0.calculate_reward(original_cube_size, mic_cube_size, 
-          level_before_push, level_after_push);
-        // update MAB with the reward
-        mab_0.update(arm_index, reward, context);
-      }
+      // update MAB with the context vector and the cube sizes
+      arm_updates_func(context_vector, original_cube_size, mic_cube_size,
+        level_before_push, level_after_push);
       addCube(level, cube);
       return level;
     }
 
     size_t cexState;  // beginning of counterexample trace
+
+    std::map<Obligation, float> obl_act;
+    void obl_bump_act(Obligation & obl) {
+      // bump the activity of the obligation
+      if (obl_act.find(obl) == obl_act.end()) {
+        obl_act[obl] = 0.0f;
+      }
+      obl_act[obl] += 1.0f;
+    }
+
+    void obl_push_to_act(Obligation & obl, int level_push) {
+      // push the obligation to the activity vector
+      if (obl_act.find(obl) == obl_act.end()) {
+        obl_act[obl] = 0.0f;
+      }
+      int i = obl.level;
+      while (i < level_push) {
+        obl_act[obl] *= 0.6f;
+        ++i;
+      }
+    }
+
+    float obl_fetch_act(Obligation & obl) {
+      // fetch the activity of the obligation
+      if (obl_act.find(obl) == obl_act.end()) {
+        return 0.0f;
+      }
+      return obl_act[obl];
+    }
 
     // Process obligations according to priority.
     bool handleObligations(PriorityQueue obls) {
@@ -812,13 +872,19 @@ namespace IC3 {
         Obligation obl = *obli;
         LitVec core;
         size_t predi;
+
+        obl_bump_act(obl);
+
         // Is the obligation fulfilled?
         if (consecution(obl.level, state(obl.state).latches, obl.state, 
                         &core, &predi)) {
           // Yes, so generalize and possibly produce a new obligation
           // at a higher level.
           obls.erase(obli);
-          size_t n = generalize(obl.level, core, obl.depth);
+          std::vector<float> context_vector;
+          arm_pulls_func(obl.level, core, obl.depth, obl, context_vector);
+          size_t n = generalize(obl.level, core, obl.depth, context_vector);
+          obl_push_to_act(obl, n);
           if (n <= k)
             obls.insert(Obligation(obl.state, n, obl.depth));
         }
@@ -951,8 +1017,11 @@ namespace IC3 {
       cout << ". # Int. joins: " << nAbortJoin << endl;
       cout << ". # Int. mics:  " << nAbortMic << endl;
       if (numUpdates) cout << ". Avg lits/cls: " << numLits / numUpdates << endl;
+      print_mab_stats();
     }
+
     void print_mab_stats() {
+      std::cout << ". MAB stats: " << std::endl;
       if (!use_mab) return;
       cout << "--------------------------" << endl;
       cout << ". MAB stats: " << endl;
@@ -1016,7 +1085,6 @@ namespace IC3 {
     bool rv = ic3.check();
     if (!rv && verbose > 1) ic3.printWitness();
     if (verbose) ic3.printStats();
-    if (verbose) ic3.print_mab_stats();
     return rv;
   }
 
