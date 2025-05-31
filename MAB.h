@@ -32,7 +32,7 @@ private:
     
 public:
     MAB(int n_arms, int ctx_dim, float alpha = 1.0, float epsilon = 0.1, 
-        bool use_mab = false);
+        bool use_mab = false, int verbose = 1);
     ~MAB();
     // reward calculation
     float calculate_reward(int original_cube_size, int final_cube_size,

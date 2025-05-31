@@ -2,15 +2,17 @@
 #include <cmath>
 #include <limits>
 #include <Eigen/Dense>
+#include <fstream> // For file output
 
-MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon, bool use_mab) 
+MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon, 
+    bool use_mab, int verbose) 
     : n_arms(n_arms), alpha(alpha), epsilon(epsilon), counts(n_arms, 0), 
     values(n_arms, 0.0), rng(std::random_device{}()), 
     A_inv(n_arms, Eigen::MatrixXd::Identity(ctx_dim, ctx_dim)), 
     theta(n_arms, Eigen::VectorXd::Zero(ctx_dim)),
     A(n_arms, Eigen::MatrixXd::Identity(ctx_dim, ctx_dim)),
     b(n_arms, Eigen::VectorXd::Zero(ctx_dim)),
-    lambda(0.1), verbose(1)
+    lambda(0.1), verbose(verbose)
 {
     if (verbose > 0 && use_mab) {
         std::cout << "MAB initialized with " << n_arms << " arms." << std::endl;
@@ -42,6 +44,31 @@ float MAB::calculate_reward(int original_cube_size,
     int pushing_power = pushed_frame - po_frame;
     float combined_reward = this->pushing_power_weight * (float) pushing_power + 
         size_reduction_reward;
+    
+    // Add CSV logging if verbose > 1
+    if (verbose > 1) {
+        bool write_header = false;
+        std::ifstream check_file("mab_reward.csv");
+        if (!check_file.good() || check_file.peek() == std::ifstream::traits_type::eof()) {
+            write_header = true;
+        }
+        check_file.close();
+        std::ofstream csv_file("mab_reward.csv", std::ios::app);
+        if (csv_file.is_open()) {
+            if (write_header) {
+                csv_file << "original_cube_size,final_cube_size,po_frame,pushed_frame,size_reduction,size_reduction_reward,pushing_power,combined_reward" << std::endl;
+            }
+            csv_file << original_cube_size << ","
+                     << final_cube_size << ","
+                     << po_frame << ","
+                     << pushed_frame << ","
+                     << size_reduction << ","
+                     << size_reduction_reward << ","
+                     << pushing_power << ","
+                     << combined_reward << std::endl;
+            csv_file.close();
+        }
+    }
     return combined_reward;
 }
 
@@ -62,6 +89,31 @@ int MAB::select_arm_ucb(const Eigen::VectorXd& context)
         }
     }
     counts[best_arm] += 1;
+
+    // CSV logging for arm selection if verbose > 1
+    if (verbose > 1) {
+        bool write_header = false;
+        std::ifstream check_file("mab_arm_select.csv");
+        if (!check_file.good() || check_file.peek() == std::ifstream::traits_type::eof()) {
+            write_header = true;
+        }
+        check_file.close();
+        std::ofstream csv_file("mab_arm_select.csv", std::ios::app);
+        if (csv_file.is_open()) {
+            if (write_header) {
+                csv_file << "# context_0=frame, context_1=lemma_len, context_2=depth, context_3=activity, context_4=bias" << std::endl;
+                for (int i = 0; i < context.size(); ++i) {
+                    csv_file << "context_" << i << ",";
+                }
+                csv_file << "best_arm" << std::endl;
+            }
+            for (int i = 0; i < context.size(); ++i) {
+                csv_file << context[i] << ",";
+            }
+            csv_file << best_arm << std::endl;
+            csv_file.close();
+        }
+    }
     return best_arm;
 }
 
@@ -98,6 +150,28 @@ void MAB::update(int arm, float reward, const Eigen::VectorXd& context)
     }
 
     if (verbose > 1) {
+        // CSV logging for arm update
+        bool write_header = false;
+        std::ifstream check_file("mab_arm_update.csv");
+        if (!check_file.good() || check_file.peek() == std::ifstream::traits_type::eof()) {
+            write_header = true;
+        }
+        check_file.close();
+        std::ofstream csv_file("mab_arm_update.csv", std::ios::app);
+        if (csv_file.is_open()) {
+            if (write_header) {
+                csv_file << "# context_0=frame, context_1=lemma_len, context_2=depth, context_3=activity, context_4=bias" << std::endl;
+                for (int i = 0; i < context.size(); ++i) {
+                    csv_file << "context_" << i << ",";
+                }
+                csv_file << "arm,reward" << std::endl;
+            }
+            for (int i = 0; i < context.size(); ++i) {
+                csv_file << context[i] << ",";
+            }
+            csv_file << arm << "," << reward << std::endl;
+            csv_file.close();
+        }
         std::cout << "Updated arm " << arm 
                   << ": counts = " << counts[arm]
                   << ", average reward = " << values[arm] 

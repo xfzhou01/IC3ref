@@ -149,7 +149,8 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 5, 1.0, 0.1, use_mab),
+      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 5, 1.0, 0.1, use_mab, 
+      verbose),
       arm_pulls(arm_0.get_n_arms(), 0)
     {
       
