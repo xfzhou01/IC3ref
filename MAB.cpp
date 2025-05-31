@@ -3,7 +3,7 @@
 #include <limits>
 #include <Eigen/Dense>
 
-MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon)
+MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon, bool use_mab) 
     : n_arms(n_arms), alpha(alpha), epsilon(epsilon), counts(n_arms, 0), 
     values(n_arms, 0.0), rng(std::random_device{}()), 
     A_inv(n_arms, Eigen::MatrixXd::Identity(ctx_dim, ctx_dim)), 
@@ -12,7 +12,7 @@ MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon)
     b(n_arms, Eigen::VectorXd::Zero(ctx_dim)),
     lambda(0.1), verbose(1)
 {
-    if (verbose > 0) {
+    if (verbose > 0 && use_mab) {
         std::cout << "MAB initialized with " << n_arms << " arms." << std::endl;
     }
     std::random_device rd;
