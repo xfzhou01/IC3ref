@@ -33,38 +33,47 @@ extern "C" {
 #include "Model.h"
 
 int main(int argc, char **argv) {
+    // 
     unsigned int propertyIndex = 0;
     bool basic = false, random = false;
     int verbose = 0;
     bool use_mab = false; // mab
     float alpha = 1.0f; // default value
 
-    int opt;
-    while ((opt = getopt(argc, argv, "-:alpha:")) != -1) {
-        if (strcmp(argv[optind-1], "-alpha") == 0 && optarg) {
-            alpha = atof(optarg);
-        }
-        else if (string(argv[optind-1]) == "-v")
-            // option: verbosity
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help") {
+            std::cout << "Usage: " << argv[0] << " [options] < input.aig\n"
+                      << "Options:\n"
+                      << "  -h, --help         Show this help message and exit\n"
+                      << "  -v                 Verbose output\n"
+                      << "  -s                 Print statistics\n"
+                      << "  -r                 Randomize the run\n"
+                      << "  -b                 Use basic generalization\n"
+                      << "  -mab               Enable MAB (multi-armed bandit)\n"
+                      << "  -alpha <float>     Set MAB learning rate (default: 1.0)\n"
+                      << "  -property <index>  Set property index (default: 0)\n";
+            return 0;
+        } else if (arg == "-v") {
             verbose = 2;
-        else if (string(argv[optind-1]) == "-s")
-            // option: print statistics
-            verbose = max(1, verbose);
-        else if (string(argv[optind-1]) == "-r") {
-            // option: randomize the run, which is useful in performance
-            // testing; default behavior is deterministic
+        } else if (arg == "-s") {
+            verbose = std::max(1, verbose);
+        } else if (arg == "-r") {
             srand(time(NULL));
             random = true;
-        }
-        else if (string(argv[optind-1]) == "-b")
-            // option: use basic generalization
+        } else if (arg == "-b") {
             basic = true;
-        else if (string(argv[optind-1]) == "-mab")
-            // option: enable MAB
+        } else if (arg == "-mab") {
             use_mab = true;
-        else
-            // optional argument: set property index
-            propertyIndex = (unsigned) atoi(argv[optind-1]);
+        } else if (arg == "-alpha") {
+            if (i + 1 < argc) {
+                alpha = atof(argv[i + 1]);
+            }
+        } else if (arg == "-property") {
+            if (i + 1 < argc) {
+                propertyIndex = (unsigned) atoi(argv[i + 1]);
+            }
+        }
     }
 
     // read AIGER model
