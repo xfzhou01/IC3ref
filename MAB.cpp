@@ -94,7 +94,8 @@ int MAB::select_arm_ucb(const Eigen::VectorXd& context)
     if (verbose > 1) {
         bool write_header = false;
         std::ifstream check_file("mab_arm_select.csv");
-        if (!check_file.good() || check_file.peek() == std::ifstream::traits_type::eof()) {
+        if (!check_file.good() || check_file.peek() == 
+            std::ifstream::traits_type::eof()) {
             write_header = true;
         }
         check_file.close();
@@ -153,7 +154,8 @@ void MAB::update(int arm, float reward, const Eigen::VectorXd& context)
         // CSV logging for arm update
         bool write_header = false;
         std::ifstream check_file("mab_arm_update.csv");
-        if (!check_file.good() || check_file.peek() == std::ifstream::traits_type::eof()) {
+        if (!check_file.good() || check_file.peek() == 
+        std::ifstream::traits_type::eof()) {
             write_header = true;
         }
         check_file.close();

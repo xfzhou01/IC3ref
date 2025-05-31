@@ -32,7 +32,8 @@ namespace IC3 {
              int verbose = 0,       // 0: silent, 1: stats, 2: informative
              bool basic = false,    // simple inductive generalization
              bool random = false,   // random runs for statistical profiling
-             bool use_mab = false   // enable MAB for parameter tuning
+             bool use_mab = false,  // enable MAB for parameter tuning
+             float alpha = 1.0f     // learning rate for MAB
             );  
 
 }

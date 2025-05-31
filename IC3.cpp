@@ -143,17 +143,16 @@ namespace IC3 {
   public:
     bool use_mab ;
     ARM arm_0;
-    IC3(Model & _model) :
-      verbose(0), random(false), model(_model), k(1), nextState(0),
+    float alpha; // learning rate for MAB
+    IC3(Model & _model, int verbose_=0, bool random_=false, bool use_mab_=false, float alpha_=1.0f) :
+      verbose(verbose_), random(random_), model(_model), k(1), nextState(0),
       litOrder(), slimLitOrder(),
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(0), arm_0(), mab_0(arm_0.get_n_arms(), 5, 1.0, 0.1, use_mab, 
-      verbose),
-      arm_pulls(arm_0.get_n_arms(), 0)
+      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 5, alpha_, 0.1, use_mab_, verbose_),
+      arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_)
     {
-      
       slimLitOrder.heuristicLitOrder = &litOrder;
 
       // construct lifting solver
@@ -201,7 +200,7 @@ namespace IC3 {
       }
     }
 
-  private:
+  public:
 
     int verbose; // 0: silent, 1: stats, 2: all
     bool random;
@@ -1062,27 +1061,21 @@ namespace IC3 {
 
   // External function to make the magic happen.
   bool check(Model & model, int verbose, bool basic, bool random, 
-    bool use_mab) {
-
-    // Sanity check: use_mab and basic cannot be true at the same time
+    bool use_mab, float alpha) {
     if (use_mab && basic) {
       std::cerr 
         << "Error: use_mab and basic cannot be true at the same time." 
         << std::endl;
       return false;
     }
-    
     if (!baseCases(model))
       return false;
-    IC3 ic3(model);
-    ic3.verbose = verbose;
-    ic3.use_mab = use_mab;
+    IC3 ic3(model, verbose, random, use_mab, alpha);
     if (basic) {
       ic3.maxDepth = 0;
       ic3.maxJoins = 0;
       ic3.maxCTGs = 0;
     }
-    if (random) ic3.random = true;
     bool rv = ic3.check();
     if (!rv && verbose > 1) ic3.printWitness();
     if (verbose) ic3.printStats();
