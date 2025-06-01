@@ -10,12 +10,20 @@ class ARM
 private:
     std::vector<std::vector<int>> arms = 
         {
-            {0, 0, 0}, // Arm 1
-            {1, 3, 3}, // Arm 2
-            {2, 3, 3}, // Arm 3
-            {8, 5, 5}  // Arm 4
+            // basic
+            {0,0,2},
+            {0,0,4},
+
+            // balanced
+            {1,2,3},
+            {1,3,3},
+            {1,4,3},
+
+            // deep 
+            {2,3,3},
+            {2,4,999}
         }; // Each arm is a vector of integers
-        // {maxDepthm maxCTGs, micAttempts}
+        // {maxDepth, maxCTGs, micAttempts}
 public:
     ARM(/* args */);
     ~ARM();

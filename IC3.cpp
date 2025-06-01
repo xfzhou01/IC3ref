@@ -154,7 +154,7 @@ namespace IC3 {
       arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_)
     {
       slimLitOrder.heuristicLitOrder = &litOrder;
-
+ 
       // construct lifting solver
       lifts = model.newSolver();
       // don't assert primed invariant constraints
