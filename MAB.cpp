@@ -29,21 +29,52 @@ MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon,
 MAB::~MAB() {}
 
 float MAB::calculate_reward(int original_cube_size, 
-    int final_cube_size, int po_frame, int pushed_frame)
+    int final_cube_size, int po_frame, int pushed_frame, int ic3_frame_index)
 {
-    int size_reduction = original_cube_size - final_cube_size;
-    float size_reduction_reward = 0.0;
-    if (size_reduction < 0) {
-        size_reduction_reward = this->size_reduction_weight * 
-            (float) size_reduction * this->mab_growth_penalty_factor; 
-    } else {
-        size_reduction_reward = this->size_reduction_weight * 
-            (float) size_reduction;
+    // 1. the calculation of size reduction and pushing power
+    float size_reduction = (float)(original_cube_size - final_cube_size);
+    float size_reduction_ratio = size_reduction / original_cube_size;
+    float push_distance = (float)(pushed_frame - po_frame);
+    float max_possible_push = (float)(ic3_frame_index - po_frame + 1);
+    float push_ratio = push_distance / max_possible_push;
+
+    // 2. generalization quality calculation
+    // 2.1 effective push quality
+    bool effective_push = push_distance > 0;
+    float push_quality = effective_push ? push_ratio : -0.1; // no push gives negative quality
+
+    // 2.2 Generalization bouns / penalty:
+    float generalization_quality = 0;
+    if (size_reduction_ratio > 0.5 && push_ratio > 0.3) {
+        // both good reduction and push
+        generalization_quality = 0.3;
+    } else if (size_reduction_ratio > 0.7 && push_ratio < 0.1) {
+        // over generalization：reduction +++ but poor push
+        generalization_quality = -0.2;
     }
 
-    int pushing_power = pushed_frame - po_frame;
-    float combined_reward = this->pushing_power_weight * (float) pushing_power + 
-        size_reduction_reward;
+    // 3. bounus calculation is special cases
+    float special_bonus = 0;
+    // 3.1 extra reward for pushing to the near boundary
+    if (ic3_frame_index - push_distance < 2) {
+        special_bonus += 0.4;
+    }
+    // 3.2 extra reward for final cube size being 1
+    //    meaning a complete generalization
+    if (final_cube_size == 1) {
+        special_bonus += 0.2;
+    }
+    // 3.3 push at high frames (near the boundary of IC3)
+    if (po_frame > 0.7 * ic3_frame_index && push_distance > 0) {
+        special_bonus += 0.2;
+    }
+
+    // 4. reward calculation
+    float reward =
+        size_reduction_ratio * 0.35 +    // generalization strength
+        push_quality * 0.45 +            // push_quality
+        generalization_quality +         // bouns/penalty on push and reduction balance
+        special_bonus;                   // special bounus
     
     // Add CSV logging if verbose > 1
     if (verbose > 1) {
@@ -56,20 +87,27 @@ float MAB::calculate_reward(int original_cube_size,
         std::ofstream csv_file("mab_reward.csv", std::ios::app);
         if (csv_file.is_open()) {
             if (write_header) {
-                csv_file << "original_cube_size,final_cube_size,po_frame,pushed_frame,size_reduction,size_reduction_reward,pushing_power,combined_reward" << std::endl;
+                csv_file << "original_cube_size,final_cube_size,po_frame,pushed_frame,ic3_frame_index,size_reduction,size_reduction_ratio,push_distance,max_possible_push,push_ratio,push_quality,generalization_quality,special_bonus,reward" << std::endl;
             }
             csv_file << original_cube_size << ","
                      << final_cube_size << ","
                      << po_frame << ","
                      << pushed_frame << ","
+                     << ic3_frame_index << ","
                      << size_reduction << ","
-                     << size_reduction_reward << ","
-                     << pushing_power << ","
-                     << combined_reward << std::endl;
+                     << size_reduction_ratio << ","
+                     << push_distance << ","
+                     << max_possible_push << ","
+                     << push_ratio << ","
+                     << push_quality << ","
+                     << generalization_quality << ","
+                     << special_bonus << ","
+                     << reward << std::endl;
             csv_file.close();
         }
     }
-    return combined_reward;
+    // 5. tailor into a range of [-0.5, 2.0]
+    return std::max(-0.5f, std::min(2.0f, reward));
 }
 
 int MAB::select_arm_ucb(const Eigen::VectorXd& context)
@@ -85,7 +123,7 @@ int MAB::select_arm_ucb(const Eigen::VectorXd& context)
         double ucb_score = p_a + alpha * std::sqrt(std::max(0.0, uncertainty));
         if (ucb_score > max_score) {
             max_score = ucb_score;
-            best_arm = i;
+            best_arm = i; 
         }
     }
     counts[best_arm] += 1;
@@ -146,8 +184,15 @@ void MAB::update(int arm, float reward, const Eigen::VectorXd& context)
         b[arm] = Eigen::VectorXd::Zero(context.size());
         theta[arm] = Eigen::VectorXd::Zero(context.size());
         // output a warning or error message
-        if (verbose > 0)
+        if (verbose > 0) {
             std::cerr << "Warning: Matrix A for arm " << arm << " became non-invertible, resetting to identity." << std::endl;
+            std::cerr << "Context vector: [";
+            for (int i = 0; i < context.size(); ++i) {
+                std::cerr << context[i];
+                if (i != context.size() - 1) std::cerr << ", ";
+            }
+            std::cerr << "]" << std::endl;
+        }
     }
 
     if (verbose > 1) {

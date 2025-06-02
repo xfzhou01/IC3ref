@@ -33,6 +33,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "ARM.h"
 #include <Eigen/Dense>
 #include <map>
+#include <math.h>
 
 // A reference implementation of IC3, i.e., one that is meant to be
 // read and used as a starting point for tuning, extending, and
@@ -150,9 +151,14 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 5, alpha_, 0.1, use_mab_, verbose_),
-      arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_)
+      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 6, alpha_, 0.1, use_mab_, verbose_),
+      arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_), average_cube_size(-1.0f),
+      derive_context_vector_calls(0)
     {
+      if (arm_0.get_n_arms() == 0) {
+        std::cerr << "[IC3] Error: ARM arms vector is empty!" << std::endl;
+        abort();
+      }
       slimLitOrder.heuristicLitOrder = &litOrder;
  
       // construct lifting solver
@@ -162,7 +168,7 @@ namespace IC3 {
       // assert notInvConstraints (in stateOf) when lifting
       notInvConstraints = Minisat::mkLit(lifts->newVar());
       Minisat::vec<Minisat::Lit> cls;
-      cls.push(~notInvConstraints);
+      cls.push(~notInvConstraints); 
       for (LitVec::const_iterator i = model.invariantConstraints().begin();
            i != model.invariantConstraints().end(); ++i)
         cls.push(model.primeLit(~*i));
@@ -714,7 +720,48 @@ namespace IC3 {
       context_vector.push_back(bias);
     }
 
+    float average_cube_size;
+    long derive_context_vector_calls = 0;
     void derive_context_vector(std::vector<float> & context_vector, 
+      int level, int lemma_len, int depth,
+      Obligation &obl) {
+        // update the average cube size
+        if (average_cube_size < 0.0f) {
+          average_cube_size = lemma_len; // initialize with first cube size
+        } else {
+          average_cube_size = 
+          (average_cube_size * (float)derive_context_vector_calls + (float)lemma_len) / 
+            (float)(derive_context_vector_calls + 1);
+        }
+        derive_context_vector_calls++;
+        // relative level is the level of the obligation
+        float relative_level = (float)level / (float)((k>=1)?k:1);
+
+        // relative cube size
+        float relative_cube_size = 
+          (float)lemma_len / (float)((average_cube_size >= 1.0f) ? average_cube_size : 1.0f);
+
+        // relative depth
+        float relative_depth = (float)depth / 
+          (float)(level >= 1 ? level : 1);
+
+        float obl_act = obl_fetch_act(obl);
+
+        // frame cube count
+        int frame_cubes = frames[level].borderCubes.size();
+        float frame_saturation = std::min(1.0f, (float)frame_cubes / 100.0f);
+
+        context_vector = {
+          relative_level, 
+          relative_cube_size, 
+          relative_depth, 
+          obl_act, 
+          frame_saturation,
+          1.0f // bias term
+        };
+      } 
+
+    void derive_context_vector_1(std::vector<float> & context_vector, 
       int level, int lemma_len, int depth,
       Obligation &obl) {
       // derive context vector from litOrder
@@ -799,7 +846,7 @@ namespace IC3 {
           context_vector_d.size());
         // calculate the reward
         float reward = mab_0.calculate_reward(original_cube_size, mic_cube_size, 
-          level_before_push, level_after_push);
+          level_before_push, level_after_push, this->k);
         // update MAB with the reward
         mab_0.update(arm_index, reward, context);
       }
@@ -847,12 +894,13 @@ namespace IC3 {
 
     void obl_push_to_act(Obligation & obl, int level_push) {
       // push the obligation to the activity vector
+      const float ACTIVITY_DECAY = 0.95f; // decay factor
       if (obl_act.find(obl) == obl_act.end()) {
         obl_act[obl] = 0.0f;
       }
       int i = obl.level;
       while (i < level_push) {
-        obl_act[obl] *= 0.6f;
+        obl_act[obl] *= ACTIVITY_DECAY;
         ++i;
       }
     }

@@ -36,7 +36,7 @@ public:
     ~MAB();
     // reward calculation
     float calculate_reward(int original_cube_size, int final_cube_size,
-        int po_frame, int pushed_frame);
+        int po_frame, int pushed_frame, int ic3_frame_index);
 
 
     // LinUCB select
