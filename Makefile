@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-std=c++0x -Wall -D __STDC_LIMIT_MACROS -D __STDC_FORMAT_MACROS -O3 -g -fpermissive
 CXX=g++
 
-INCLUDE=-Iminisat -Iminisat/minisat/core -Iminisat/minisat/mtl -Iminisat/minisat/simp -Iaiger -I/usr/include/eigen3
+INCLUDE=-Iminisat -Iminisat/minisat/core -Iminisat/minisat/mtl -Iminisat/minisat/simp -Iaiger -I/hpc/home/cwb.xzhoubu/eigen-3.4.0
 
 all:	ic3
 

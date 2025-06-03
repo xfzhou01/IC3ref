@@ -284,7 +284,7 @@ namespace IC3 {
     }
     class LitVecComp {
     public:
-      bool operator()(const LitVec & v1, const LitVec & v2) {
+      bool operator()(const LitVec & v1, const LitVec & v2) const {
         return _LitVecComp(v1, v2);
       }
     };
