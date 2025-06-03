@@ -1,6 +1,5 @@
 *.gz
 *.o
-IC3
 *.txt
 ic3_simple_example
 .vscode
