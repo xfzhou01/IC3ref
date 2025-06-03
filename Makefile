@@ -7,9 +7,12 @@ INCLUDE=-Iminisat -Iminisat/minisat/core -Iminisat/minisat/mtl -Iminisat/minisat
 all:	ic3
 
 ic3:	minisat/build/release/lib/libminisat.a aiger/aiger.o Model.o IC3.o MAB.o ARM.o main.o
-	$(CXX) $(CFLAGS) $(INCLUDE) -o IC3 \
-		aiger.o Model.o IC3.o MAB.o ARM.o main.o \
-		minisat/build/release/lib/libminisat.a
+	$(CXX) $(CFLAGS) $(INCLUDE) -static -o IC3 \
+		aiger/aiger.o Model.o IC3.o MAB.o ARM.o main.o \
+		minisat/build/release/lib/libminisat.a -lm -lpthread
+
+aiger/aiger.o: aiger/aiger.c aiger/aiger.h
+	$(CC) -c $(INCLUDE) -o aiger/aiger.o aiger/aiger.c
 
 .c.o:
 	$(CC) -g -O3 $(INCLUDE) $< -c
