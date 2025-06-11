@@ -151,7 +151,7 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 6, alpha_, 0.1, use_mab_, verbose_),
+      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 8, alpha_, 0.1, use_mab_, verbose_),
       arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_), average_cube_size(-1.0f),
       derive_context_vector_calls(0)
     {
@@ -751,12 +751,42 @@ namespace IC3 {
         int frame_cubes = frames[level].borderCubes.size();
         float frame_saturation = std::min(1.0f, (float)frame_cubes / 100.0f);
 
+        // history of the predecessor
+        float sum_of_history = 0;
+        float count_of_history = 0;
+        float average_history = 0.0f;
+        long current_history = 0;
+        // fetch the history of the predecessor
+        auto it = obligation_predecessor_history.find(obl);
+        if (it != obligation_predecessor_history.end()) {
+          current_history = it->second;
+        } else {
+          current_history = 0; // no history
+        }
+        for (const auto &entry : obligation_predecessor_history) {
+          if (entry.first.level == level) {
+            sum_of_history += (float)entry.second;
+            count_of_history++;
+          }
+        }
+        if (sum_of_history > 0) {
+          average_history = sum_of_history / 
+            (float)count_of_history;
+        } else {
+          average_history = 0.0f; // no history
+        }
+        // relative history
+        float relative_history_of_current_state = (float)current_history / 
+          (float)((average_history >= 1.0f) ? average_history : 1.0f);
+
         context_vector = {
           relative_level, 
           relative_cube_size, 
           relative_depth, 
           obl_act, 
           frame_saturation,
+          relative_history_of_current_state,
+          average_history, // average history of the predecessor
           1.0f // bias term
         };
       } 
@@ -805,7 +835,7 @@ namespace IC3 {
     // the vector to record the number of pulls of each arm
     std::vector<int> arm_pulls;
     int arm_index = -1;
-
+    std::map<Obligation, long> obligation_predecessor_history;
 
     void arm_pulls_func(size_t level, LitVec cube, 
       size_t depth, Obligation &obl, std::vector<float> &context_vector) {
@@ -944,6 +974,12 @@ namespace IC3 {
         else {
           ++nCTI;  // stats
           // No, so focus on predecessor.
+          // add to predecessor history
+          if (obligation_predecessor_history.find(obl) == 
+            obligation_predecessor_history.end()) {
+            obligation_predecessor_history[obl] = 0;
+          }
+          obligation_predecessor_history[obl] += 1;
           obls.insert(Obligation(predi, obl.level-1, obl.depth+1));
         }
       }
