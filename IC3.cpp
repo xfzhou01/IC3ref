@@ -151,7 +151,7 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 8, alpha_, 0.1, use_mab_, verbose_),
+      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 7, alpha_, 0.1, use_mab_, verbose_),
       arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_), average_cube_size(-1.0f),
       derive_context_vector_calls(0)
     {
@@ -786,7 +786,6 @@ namespace IC3 {
           obl_act, 
           frame_saturation,
           relative_history_of_current_state,
-          average_history, // average history of the predecessor
           1.0f // bias term
         };
       } 
