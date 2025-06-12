@@ -719,12 +719,27 @@ namespace IC3 {
       context_vector.push_back(po_depth_feat);
       context_vector.push_back(bias);
     }
+    
 
     float average_cube_size;
     long derive_context_vector_calls = 0;
     void derive_context_vector(std::vector<float> & context_vector, 
       int level, int lemma_len, int depth,
       Obligation &obl) {
+      const float MAX_EXPECTED_FRAME = 100.0;
+      const float MAX_EXPECTED_LEMMA_LEN = 50.0; 
+      const float MAX_EXPECTED_DEPTH = 50.0;
+
+      int po_frame = obl.level;
+      int po_lemma_len = state(obl.state).latches.size();
+      int po_depth = obl.depth;
+
+      float po_frame_feat = normalize_feature(po_frame, 
+        0.0f, MAX_EXPECTED_FRAME);
+      float po_lemma_len_feat = normalize_feature(po_lemma_len, 1.0f, 
+        MAX_EXPECTED_LEMMA_LEN);
+      float po_depth_feat = normalize_feature(po_depth, 
+        0.0f, MAX_EXPECTED_DEPTH);
         // update the average cube size
         if (average_cube_size < 0.0f) {
           average_cube_size = lemma_len; // initialize with first cube size
@@ -785,7 +800,7 @@ namespace IC3 {
           relative_depth, 
           obl_act, 
           frame_saturation,
-          relative_history_of_current_state,
+          po_frame_feat,
           1.0f // bias term
         };
       } 
