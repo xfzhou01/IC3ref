@@ -244,6 +244,7 @@ void MAB::update(int arm, float reward, const Eigen::VectorXd& context)
                          << "frame saturation, "
                          << "po frame, "
                          << "po queue length, "
+                         << "po queue length delta,"
                          << "bias,"
                          << "reward" << std::endl;
                 csv_file.close();

@@ -151,7 +151,7 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 8, alpha_, 0.1, use_mab_, verbose_),
+      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 9, alpha_, 0.1, use_mab_, verbose_),
       arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_), average_cube_size(-1.0f),
       derive_context_vector_calls(0)
     {
@@ -726,6 +726,7 @@ namespace IC3 {
     // the updated derive context function
     float average_cube_size;
     long derive_context_vector_calls = 0;
+    int prev_ob_queue_len = 0;
     void derive_context_vector(std::vector<float> & context_vector, 
       int level, int lemma_len, int depth,
       Obligation &obl, 
@@ -734,10 +735,13 @@ namespace IC3 {
       const float MAX_EXPECTED_LEMMA_LEN = 50.0; 
       const float MAX_EXPECTED_DEPTH = 50.0;
       const float MAX_OBLIGATION_QUEUE_LEN = 20.0;
+      const float MAX_OBLIGATION_QUEUE_LEN_DELTA = 10.0;
 
       int po_frame = obl.level;
       int po_lemma_len = state(obl.state).latches.size();
       int po_depth = obl.depth;
+      int delta_po_queue_len = ob_queue_len - prev_ob_queue_len;
+        prev_ob_queue_len = ob_queue_len;
 
       float po_frame_feat = normalize_feature(po_frame, 
         0.0f, MAX_EXPECTED_FRAME);
@@ -750,6 +754,13 @@ namespace IC3 {
         (float)ob_queue_len,
         0.0f, MAX_OBLIGATION_QUEUE_LEN
       );
+      float obligation_queue_len_delta = 
+      normalize_feature(
+        (float)delta_po_queue_len,
+        0.0f, MAX_OBLIGATION_QUEUE_LEN_DELTA
+      );
+
+        
 
         // update the average cube size
         if (average_cube_size < 0.0f) {
@@ -813,6 +824,7 @@ namespace IC3 {
           frame_saturation,
           po_frame_feat,
           obligation_queue_len,
+          obligation_queue_len_delta,
           1.0f // bias term
         };
       } 
