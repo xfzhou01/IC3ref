@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
                       << "  -mab               Enable MAB (multi-armed bandit)\n"
                       << "  -alpha <float>     Set MAB learning rate (default: 1.0)\n"
                       << "  -property <index>  Set property index (default: 0)\n";
-            return 0;
+            return 0; 
         } else if (arg == "-v") {
             verbose = 2;
         } else if (arg == "-s") {

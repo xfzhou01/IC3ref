@@ -24,13 +24,30 @@ private:
             {2,3,3},
             {2,4,999}
         }; // Each arm is a vector of integers
-    std::vector<std::vector<int>> arms = 
+    std::vector<std::vector<int>> arms_3 = 
         {
             // basic
             {1,3,2147483647}, // CTG standard
             {1,2,2147483647}, // CTG conservative
             {1,4,2147483647}, // CTG aggressive
             {0,0,2147483647}, // no CTG
+
+            // balanced
+            {1,3,3}, // ic3ref
+            {0,0,3}, // basic
+
+
+            // deep 
+            {1,1,2147483647} // min CTG
+        }; 
+        // {maxDepth, maxCTGs, micAttempts}
+    std::vector<std::vector<int>> arms = 
+        {
+            // basic
+            {0,0,2147483647}, // no CTG
+            {1,2,2147483647}, // CTG conservative
+            {1,4,2147483647}, // CTG standard
+            {2,8,2147483647}, // CTG aggressive
 
             // balanced
             {1,3,3}, // ic3ref

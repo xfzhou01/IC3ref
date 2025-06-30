@@ -4,3 +4,5 @@
 ic3_simple_example
 .vscode
 minisat_learn
+data
+*.csv

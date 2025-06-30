@@ -29,6 +29,9 @@ private:
 
     // other parameters
     int verbose; // verbosity level
+
+    // write header for the csv statistics
+    bool csv_write_header;
     
 public:
     MAB(int n_arms, int ctx_dim, float alpha = 1.0, float epsilon = 0.1, 

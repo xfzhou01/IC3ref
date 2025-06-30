@@ -151,7 +151,7 @@ namespace IC3 {
       numLits(0), numUpdates(0), maxDepth(1), maxCTGs(3),
       maxJoins(1<<20), micAttempts(3), cexState(0), nQuery(0), nCTI(0), nCTG(0),
       nmic(0), satTime(0), nCoreReduced(0), nAbortJoin(0), nAbortMic(0),
-      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 7, alpha_, 0.1, use_mab_, verbose_),
+      use_mab(use_mab_), arm_0(), mab_0(arm_0.get_n_arms(), 8, alpha_, 0.1, use_mab_, verbose_),
       arm_pulls(arm_0.get_n_arms(), 0), alpha(alpha_), average_cube_size(-1.0f),
       derive_context_vector_calls(0)
     {
@@ -689,7 +689,7 @@ namespace IC3 {
         return norm;
     }
 
-    void derive_context_vector(std::vector<float> & context_vector, 
+    void derive_context_vector_2(std::vector<float> & context_vector, 
       const Obligation &obl) {
       // derive context vector from litOrder
       // context: 
@@ -719,16 +719,21 @@ namespace IC3 {
       context_vector.push_back(po_depth_feat);
       context_vector.push_back(bias);
     }
-    
+    // derive_context_vector_2
+    // the old derive context function
 
+
+    // the updated derive context function
     float average_cube_size;
     long derive_context_vector_calls = 0;
     void derive_context_vector(std::vector<float> & context_vector, 
       int level, int lemma_len, int depth,
-      Obligation &obl) {
+      Obligation &obl, 
+      int ob_queue_len) {
       const float MAX_EXPECTED_FRAME = 100.0;
       const float MAX_EXPECTED_LEMMA_LEN = 50.0; 
       const float MAX_EXPECTED_DEPTH = 50.0;
+      const float MAX_OBLIGATION_QUEUE_LEN = 20.0;
 
       int po_frame = obl.level;
       int po_lemma_len = state(obl.state).latches.size();
@@ -740,13 +745,19 @@ namespace IC3 {
         MAX_EXPECTED_LEMMA_LEN);
       float po_depth_feat = normalize_feature(po_depth, 
         0.0f, MAX_EXPECTED_DEPTH);
+
+      float obligation_queue_len = normalize_feature(
+        (float)ob_queue_len,
+        0.0f, MAX_OBLIGATION_QUEUE_LEN
+      );
+
         // update the average cube size
         if (average_cube_size < 0.0f) {
           average_cube_size = lemma_len; // initialize with first cube size
         } else {
           average_cube_size = 
           (average_cube_size * (float)derive_context_vector_calls + (float)lemma_len) / 
-            (float)(derive_context_vector_calls + 1);
+            (float)(derive_context_vector_calls + 1.0);
         }
         derive_context_vector_calls++;
         // relative level is the level of the obligation
@@ -801,6 +812,7 @@ namespace IC3 {
           obl_act, 
           frame_saturation,
           po_frame_feat,
+          obligation_queue_len,
           1.0f // bias term
         };
       } 
@@ -852,7 +864,8 @@ namespace IC3 {
     std::map<Obligation, long> obligation_predecessor_history;
 
     void arm_pulls_func(size_t level, LitVec cube, 
-      size_t depth, Obligation &obl, std::vector<float> &context_vector) {
+      size_t depth, Obligation &obl, std::vector<float> &context_vector,
+      int ob_queue_len) {
       
       if (this->use_mab) {
         // add MAB select
@@ -860,7 +873,7 @@ namespace IC3 {
         context_vector.clear();
         // derive context vector
         derive_context_vector(context_vector, 
-          level, cube.size(), depth, obl);
+          level, cube.size(), depth, obl, ob_queue_len);
         std::vector<double> context_vector_d(context_vector.begin(), 
           context_vector.end());
         Eigen::Map<Eigen::VectorXd> context(context_vector_d.data(), 
@@ -974,7 +987,7 @@ namespace IC3 {
           // at a higher level.
           obls.erase(obli);
           std::vector<float> context_vector;
-          arm_pulls_func(obl.level, core, obl.depth, obl, context_vector);
+          arm_pulls_func(obl.level, core, obl.depth, obl, context_vector, obls.size());
           size_t n = generalize(obl.level, core, obl.depth, context_vector);
           obl_push_to_act(obl, n);
           if (n <= k)

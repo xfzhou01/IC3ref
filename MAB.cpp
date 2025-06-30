@@ -3,6 +3,7 @@
 #include <limits>
 #include <Eigen/Dense>
 #include <fstream> // For file output
+#include <sys/stat.h>
 
 MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon, 
     bool use_mab, int verbose) 
@@ -12,7 +13,8 @@ MAB::MAB(int n_arms, int ctx_dim, float alpha, float epsilon,
     theta(n_arms, Eigen::VectorXd::Zero(ctx_dim)),
     A(n_arms, Eigen::MatrixXd::Identity(ctx_dim, ctx_dim)),
     b(n_arms, Eigen::VectorXd::Zero(ctx_dim)),
-    lambda(0.1), verbose(verbose)
+    lambda(0.1), verbose(verbose),
+    csv_write_header(true)
 {
     if (verbose > 0 && use_mab) {
         std::cout << "MAB initialized with " << n_arms << " arms." << std::endl;
@@ -79,16 +81,31 @@ float MAB::calculate_reward(int original_cube_size,
     // Add CSV logging if verbose > 1
     if (verbose > 1) {
         bool write_header = false;
-        std::ifstream check_file("mab_reward.csv");
-        if (!check_file.good() || check_file.peek() == std::ifstream::traits_type::eof()) {
+        bool file_exists = false;
+        bool file_nonempty = false;
+        struct stat st;
+        if (stat("mab_reward.csv", &st) == 0) {
+            file_exists = true;
+            if (st.st_size > 0) file_nonempty = true;
+        }
+        if (!file_exists || !file_nonempty) {
             write_header = true;
         }
-        check_file.close();
+        if (write_header && file_nonempty) {
+            std::ofstream csv_file("mab_reward.csv", std::ios::trunc);
+            if (csv_file.is_open()) {
+                csv_file << "original_cube_size,final_cube_size,po_frame,pushed_frame,ic3_frame_index,size_reduction,size_reduction_ratio,push_distance,max_possible_push,push_ratio,push_quality,generalization_quality,special_bonus,reward" << std::endl;
+                csv_file.close();
+            }
+        } else if (write_header) {
+            std::ofstream csv_file("mab_reward.csv", std::ios::app);
+            if (csv_file.is_open()) {
+                csv_file << "original_cube_size,final_cube_size,po_frame,pushed_frame,ic3_frame_index,size_reduction,size_reduction_ratio,push_distance,max_possible_push,push_ratio,push_quality,generalization_quality,special_bonus,reward" << std::endl;
+                csv_file.close();
+            }
+        }
         std::ofstream csv_file("mab_reward.csv", std::ios::app);
         if (csv_file.is_open()) {
-            if (write_header) {
-                csv_file << "original_cube_size,final_cube_size,po_frame,pushed_frame,ic3_frame_index,size_reduction,size_reduction_ratio,push_distance,max_possible_push,push_ratio,push_quality,generalization_quality,special_bonus,reward" << std::endl;
-            }
             csv_file << original_cube_size << ","
                      << final_cube_size << ","
                      << po_frame << ","
@@ -131,25 +148,38 @@ int MAB::select_arm_ucb(const Eigen::VectorXd& context)
     // CSV logging for arm selection if verbose > 1
     if (verbose > 1) {
         bool write_header = false;
-        std::ifstream check_file("mab_arm_select.csv");
-        if (!check_file.good() || check_file.peek() == 
-            std::ifstream::traits_type::eof()) {
+        bool file_exists = false;
+        bool file_nonempty = false;
+        struct stat st;
+        if (stat("mab_arm_select.csv", &st) == 0) {
+            file_exists = true;
+            if (st.st_size > 0) file_nonempty = true;
+        }
+        if (!file_exists || !file_nonempty) {
             write_header = true;
         }
-        check_file.close();
+        if (write_header && file_nonempty) {
+            std::ofstream csv_file("mab_arm_select.csv", std::ios::trunc);
+            if (csv_file.is_open()) {
+                csv_file << "# context_0=relative_level, context_1=relative_cube_size, context_2=relative_depth, context_3=obl_act, context_4=frame_saturation\n";
+                csv_file << "relative_level,relative_cube_size,relative_depth,obl_act,frame_saturation,best_arm" << std::endl;
+                csv_file.close();
+            }
+        } else if (write_header) {
+            std::ofstream csv_file("mab_arm_select.csv", std::ios::app);
+            if (csv_file.is_open()) {
+                csv_file << "# context_0=relative_level, context_1=relative_cube_size, context_2=relative_depth, context_3=obl_act, context_4=frame_saturation\n";
+                csv_file << "relative_level,relative_cube_size,relative_depth,obl_act,frame_saturation,best_arm" << std::endl;
+                csv_file.close();
+            }
+        }
         std::ofstream csv_file("mab_arm_select.csv", std::ios::app);
         if (csv_file.is_open()) {
-            if (write_header) {
-                csv_file << "# context_0=frame, context_1=lemma_len, context_2=depth, context_3=activity, context_4=bias" << std::endl;
-                for (int i = 0; i < context.size(); ++i) {
-                    csv_file << "context_" << i << ",";
-                }
-                csv_file << "best_arm" << std::endl;
+            for (int j = 0; j < context.size(); ++j) {
+                csv_file << context[j];
+                if (j != context.size() - 1) csv_file << ",";
             }
-            for (int i = 0; i < context.size(); ++i) {
-                csv_file << context[i] << ",";
-            }
-            csv_file << best_arm << std::endl;
+            csv_file << "," << best_arm << std::endl;
             csv_file.close();
         }
     }
@@ -196,33 +226,40 @@ void MAB::update(int arm, float reward, const Eigen::VectorXd& context)
     }
 
     if (verbose > 1) {
-        // CSV logging for arm update
-        bool write_header = false;
-        std::ifstream check_file("mab_arm_update.csv");
-        if (!check_file.good() || check_file.peek() == 
-        std::ifstream::traits_type::eof()) {
-            write_header = true;
+        if (this->csv_write_header) {
+            struct stat st;
+            if (stat("mab_arm_update.csv", &st) == 0) {
+                // Remove the file if it exists and is non-empty
+                std::remove("mab_arm_update.csv");
+            }
         }
-        check_file.close();
+        if (this->csv_write_header) {
+            std::ofstream csv_file("mab_arm_update.csv", std::ios::app);
+            if (csv_file.is_open()) {
+                csv_file << "arm, "
+                         << "relative level, " 
+                         << "relative cube size, "
+                         << "relative depth, "
+                         << "obligation activity, "
+                         << "frame saturation, "
+                         << "po frame, "
+                         << "po queue length, "
+                         << "bias,"
+                         << "reward" << std::endl;
+                csv_file.close();
+            }
+            this->csv_write_header = false;
+        }
         std::ofstream csv_file("mab_arm_update.csv", std::ios::app);
         if (csv_file.is_open()) {
-            if (write_header) {
-                csv_file << "# context_0=frame, context_1=lemma_len, context_2=depth, context_3=activity, context_4=bias" << std::endl;
-                for (int i = 0; i < context.size(); ++i) {
-                    csv_file << "context_" << i << ",";
-                }
-                csv_file << "arm,reward" << std::endl;
+            csv_file << arm << ",";
+            for (int j = 0; j < context.size(); ++j) {
+                csv_file << context[j] << ",";
+                //if (j != context.size() - 1) csv_file << ",";
             }
-            for (int i = 0; i < context.size(); ++i) {
-                csv_file << context[i] << ",";
-            }
-            csv_file << arm << "," << reward << std::endl;
+            csv_file << reward;
+            csv_file << std::endl;
             csv_file.close();
         }
-        std::cout << "Updated arm " << arm 
-                  << ": counts = " << counts[arm]
-                  << ", average reward = " << values[arm] 
-                  << ", current reward = " << reward 
-                  << std::endl;
     }
 }
